@@ -1,11 +1,12 @@
 #pragma once
 
+#include "common.h"
 #include "header.h"
 
 typedef struct PEFormat {
-    u32 e_lfanew;
     RDAddress imagebase;
     RDAddress entrypoint;
+    ImageDosHeader dosheader;
     ImageFileHeader fileheader;
 
     union {

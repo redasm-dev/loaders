@@ -1,6 +1,6 @@
 #pragma once
 
-#include "format.h"
+#include "pe/format.h"
 #include <redasm/redasm.h>
 
 typedef struct ImageRuntimeFunctionEntry {

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "format.h"
+#include "pe/format.h"
 
 #define IMAGE_RESOURCE_NAME_IS_STRING 0x80000000
 #define IMAGE_RESOURCE_DATA_IS_DIRECTORY 0x80000000

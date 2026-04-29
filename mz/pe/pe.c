@@ -1,18 +1,17 @@
-#include "dirs/debug.h"
-#include "dirs/exceptions.h"
-#include "dirs/exports.h"
-#include "dirs/imports.h"
-#include "dirs/resources.h"
+#include "pe.h"
 #include "format.h"
+#include "pe/dirs/debug.h"
+#include "pe/dirs/exceptions.h"
+#include "pe/dirs/exports.h"
+#include "pe/dirs/imports.h"
+#include "pe/dirs/resources.h"
 #include <stdlib.h>
 
 static bool pe_parse(RDLoader* ldr, const RDLoaderRequest* req) {
     PEFormat* pe = (PEFormat*)ldr;
-    if(!rd_reader_expect_le16(req->input, IMAGE_DOS_SIGNATURE)) return false;
+    if(!mz_read_dos_header(req->input, &pe->dosheader)) return false;
 
-    rd_reader_seek(req->input, 0x3c);
-    if(!rd_reader_read_le32(req->input, &pe->e_lfanew)) return false;
-    rd_reader_seek(req->input, pe->e_lfanew);
+    rd_reader_seek(req->input, pe->dosheader.e_lfanew);
     if(!rd_reader_expect_le32(req->input, IMAGE_NT_SIGNATURE)) return false;
 
     rd_reader_read_le16(req->input, &pe->fileheader.Machine);
@@ -170,7 +169,7 @@ static const char* pe_get_processor(RDLoader* ldr, const RDContext* ctx) {
     return NULL;
 }
 
-static const RDLoaderPlugin PE_LOADER = {
+const RDLoaderPlugin PE_LOADER = {
     .level = RD_API_LEVEL,
     .id = "pe",
     .name = "Portable Executable",
@@ -180,5 +179,3 @@ static const RDLoaderPlugin PE_LOADER = {
     .load = pe_load,
     .get_processor = pe_get_processor,
 };
-
-void rd_plugin_create(void) { rd_register_loader(&PE_LOADER); }

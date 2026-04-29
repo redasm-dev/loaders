@@ -7,15 +7,6 @@
     (ImageSectionHeader*)((char*)(nt) + nt->FileHeader.SizeOfOptionalHeader +  \
                           0x18)
 
-// typedef struct ImageDosHeader {
-//     u16 e_magic, e_cblp, e_cp, e_crlc, e_cparhdr;
-//     u16 e_minalloc, e_maxalloc;
-//     u16 e_ss, e_sp, e_csum, e_ip, e_cs;
-//     u16 e_lfarlc, e_ovno, e_res[4];
-//     u16 e_oemid, e_oeminfo, e_res2[10];
-//     u32 e_lfanew;
-// } ImageDosHeader;
-
 typedef struct ImageFileHeader {
     u16 Machine, NumberOfSections;
     u32 TimeDateStamp, PointerToSymbolTable, NumberOfSymbols;

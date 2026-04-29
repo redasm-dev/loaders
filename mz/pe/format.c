@@ -24,7 +24,7 @@ int pe_get_bits(PEFormat* pe) {
 bool pe_read_section_header(PEFormat* pe, RDReader* r, int idx,
                             ImageSectionHeader* s) {
     const u32 FIRST_SECTION =
-        pe->e_lfanew + pe->fileheader.SizeOfOptionalHeader + 0x18;
+        pe->dosheader.e_lfanew + pe->fileheader.SizeOfOptionalHeader + 0x18;
 
     rd_reader_seek(r, FIRST_SECTION + (idx * sizeof(ImageSectionHeader)));
 

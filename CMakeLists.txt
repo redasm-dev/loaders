@@ -6,5 +6,5 @@ if(NOT TARGET redasm::redasm)
 endif()
 
 add_subdirectory(elf)
-add_subdirectory(pe)
+add_subdirectory(mz)
 add_subdirectory(psx)
