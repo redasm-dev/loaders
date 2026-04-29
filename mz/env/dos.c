@@ -7,8 +7,9 @@ static void x86_dos_decode(const RDContext* ctx, RDInstruction* instr,
 
     if(rd_instruction_equals(ctx, instr, "int")) {
         switch(instr->operands[0].imm) {
+            case 0x20: // Terminate program
             case 0x27: // Terminate and stay resident
-                instr->flow |= RD_IF_STOP;
+                instr->flow = RD_IF_STOP;
                 break;
 
             default: break;

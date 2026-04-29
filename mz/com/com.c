@@ -28,7 +28,7 @@ static bool com_load(RDLoader* ldr, RDContext* ctx) {
 static const char* com_get_processor(RDLoader* ldr, const RDContext* ctx) {
     RD_UNUSED(ldr);
     RD_UNUSED(ctx);
-    return "x86_16_real";
+    return "x86_16_dos";
 }
 
 const RDLoaderPlugin COM_LOADER = {
