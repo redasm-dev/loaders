@@ -12,8 +12,6 @@ target_sources(${PROJECT_NAME}
     PRIVATE
         com/com.c
 
-        env/dos.c
-
         pe/dirs/debug.c
         pe/dirs/exceptions.c
         pe/dirs/exports.c
@@ -23,6 +21,7 @@ target_sources(${PROJECT_NAME}
         pe/pe.c
 
         common.c
+        hooks.c
         plugin.c
 )
 
