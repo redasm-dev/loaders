@@ -3,6 +3,8 @@
 #include "common.h"
 #include <redasm/redasm.h>
 
+#define IMAGE_DOS_SIGNATURE 0x5A4D
+
 typedef struct ImageDosHeader {
     u16 e_magic, e_cblp, e_cp, e_crlc, e_cparhdr;
     u16 e_minalloc, e_maxalloc;

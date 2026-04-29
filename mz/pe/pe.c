@@ -171,7 +171,7 @@ static const char* pe_get_processor(RDLoader* ldr, const RDContext* ctx) {
 
 const RDLoaderPlugin PE_LOADER = {
     .level = RD_API_LEVEL,
-    .id = "pe",
+    .id = "mz_pe",
     .name = "Portable Executable",
     .create = pe_create,
     .destroy = pe_destroy,

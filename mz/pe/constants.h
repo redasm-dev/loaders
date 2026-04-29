@@ -3,7 +3,6 @@
 // https://docs.microsoft.com/en-us/windows/desktop/debug/pe-format
 
 // Signatures
-#define IMAGE_DOS_SIGNATURE 0x5A4D
 #define IMAGE_NT_SIGNATURE 0x00004550
 #define IMAGE_NT_OPTIONAL_HDR32_MAGIC 0x10b
 #define IMAGE_NT_OPTIONAL_HDR64_MAGIC 0x20b
