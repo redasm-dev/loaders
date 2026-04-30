@@ -3,8 +3,8 @@
 #include "hooks.h"
 #include <string.h>
 
-#define COM_ENTRY 0x0100
-#define COM_MEMSEG_SIZE 0x10000
+#define COM_SEG_START 0x0100
+#define COM_SEG_END 0x10000
 
 static bool com_parse(RDLoader* ldr, const RDLoaderRequest* req) {
     RD_UNUSED(ldr);
@@ -21,9 +21,9 @@ static bool com_load(RDLoader* ldr, RDContext* ctx) {
     RDReader* r = rd_get_input_reader(ctx);
     usize len = rd_reader_get_length(r);
 
-    rd_map_segment_n(ctx, "MEM", 0, COM_MEMSEG_SIZE, RD_SP_RWX);
-    rd_map_input_n(ctx, 0, COM_ENTRY, len);
-    rd_set_entry_point(ctx, COM_ENTRY, NULL);
+    rd_map_segment(ctx, "MEM", COM_SEG_START, COM_SEG_END, RD_SP_RWX);
+    rd_map_input_n(ctx, 0, COM_SEG_START, len);
+    rd_set_entry_point(ctx, COM_SEG_START, NULL);
     return true;
 }
 
