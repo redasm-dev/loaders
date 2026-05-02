@@ -13,9 +13,9 @@ static void _x86_read_com_string(RDContext* ctx, RDAddress addr) {
 }
 
 static void _x86_dos_int_hook(RDContext* ctx, RDInstruction* instr) {
-    if(instr->operands[0].kind != RD_OP_IMM) return;
+    if(instr->operands[0].kind != RD_OP_CNST) return;
 
-    switch(instr->operands[0].imm) {
+    switch(instr->operands[0].cnst) {
         case 0x21: {
             RDRegValue ah;
             if(!rd_get_regval(ctx, instr->address, "ah", &ah)) return;
