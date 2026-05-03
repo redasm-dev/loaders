@@ -1,0 +1,282 @@
+#include "biosfunc.h"
+
+typedef struct PSXBiosFunc {
+    u8 fn;
+    const char* name;
+} PSXBiosFunc;
+
+static const PSXBiosFunc PSX_BIOS_A[] = {
+    {0x00, "open"},
+    {0x01, "lseek"},
+    {0x02, "read"},
+    {0x03, "write"},
+    {0x04, "close"},
+    {0x05, "ioctl"},
+    {0x06, "exit"},
+    {0x07, "isatty"},
+    {0x08, "getc"},
+    {0x09, "putc"},
+    {0x0A, "todigit"},
+    {0x0B, "atof"},
+    {0x0C, "strtoul"},
+    {0x0D, "strtol"},
+    {0x0E, "abs"},
+    {0x0F, "labs"},
+    {0x10, "atoi"},
+    {0x11, "atol"},
+    {0x12, "atob"},
+    {0x13, "setjmp"},
+    {0x14, "longjmp"},
+    {0x15, "strcat"},
+    {0x16, "strncat"},
+    {0x17, "strcmp"},
+    {0x18, "strncmp"},
+    {0x19, "strcpy"},
+    {0x1A, "strncpy"},
+    {0x1B, "strlen"},
+    {0x1C, "index"},
+    {0x1D, "rindex"},
+    {0x1E, "strchr"},
+    {0x1F, "strrchr"},
+    {0x20, "strpbrk"},
+    {0x21, "strspn"},
+    {0x22, "strcspn"},
+    {0x23, "strtok"},
+    {0x24, "strstr"},
+    {0x25, "toupper"},
+    {0x26, "tolower"},
+    {0x27, "bcopy"},
+    {0x28, "bzero"},
+    {0x29, "bcmp"},
+    {0x2A, "memcpy"},
+    {0x2B, "memset"},
+    {0x2C, "memmove"},
+    {0x2D, "memcmp"},
+    {0x2E, "memchr"},
+    {0x2F, "rand"},
+    {0x30, "srand"},
+    {0x31, "qsort"},
+    {0x32, "strtod"},
+    {0x33, "malloc"},
+    {0x34, "free"},
+    {0x35, "lsearch"},
+    {0x36, "bsearch"},
+    {0x37, "calloc"},
+    {0x38, "realloc"},
+    {0x39, "InitHeap"},
+    {0x3A, "_exit"},
+    {0x3B, "getchar"},
+    {0x3C, "putchar"},
+    {0x3D, "gets"},
+    {0x3E, "puts"},
+    {0x3F, "printf"},
+    {0x40, "SystemErrorUnresolvedException"},
+    {0x41, "LoadTest"},
+    {0x42, "Load"},
+    {0x43, "Exec"},
+    {0x44, "FlushCache"},
+    {0x45, "init_a0_b0_c0_vectors"},
+    {0x46, "GPU_dw"},
+    {0x47, "gpu_send_dma"},
+    {0x48, "SendGP1Command"},
+    {0x49, "GPU_cw"},
+    {0x4A, "GPU_cwp"},
+    {0x4B, "send_gpu_linked_list"},
+    {0x4C, "gpu_abort_dma"},
+    {0x4D, "GetGPUStatus"},
+    {0x4E, "gpu_sync"},
+    {0x51, "LoadExec"},
+    {0x54, "_96_init"},
+    {0x55, "_bu_init"},
+    {0x56, "_96_remove"},
+    {0x5B, "dev_tty_init"},
+    {0x5C, "dev_tty_open"},
+    {0x5E, "dev_tty_ioctl"},
+    {0x5F, "dev_cd_open"},
+    {0x60, "dev_cd_read"},
+    {0x61, "dev_cd_close"},
+    {0x63, "dev_cd_firstfile"},
+    {0x64, "dev_cd_nextfile"},
+    {0x65, "dev_cd_chdir"},
+    {0x66, "dev_card_open"},
+    {0x67, "dev_card_read"},
+    {0x68, "dev_card_write"},
+    {0x69, "dev_card_close"},
+    {0x6A, "dev_card_firstfile"},
+    {0x6B, "dev_card_nextfile"},
+    {0x6C, "dev_card_erase"},
+    {0x6D, "dev_card_undelete"},
+    {0x6E, "dev_card_format"},
+    {0x6F, "dev_card_rename"},
+    {0x71, "_96_init"},
+    {0x72, "_96_remove"},
+    {0x78, "CdAsyncSeekL"},
+    {0x7C, "CdAsyncGetStatus"},
+    {0x7E, "CdAsyncReadSector"},
+    {0x81, "CdAsyncSetMode"},
+    {0x90, "CdromIoIrqFunc1"},
+    {0x91, "CdromDmaIrqFunc1"},
+    {0x92, "CdromIoIrqFunc2"},
+    {0x93, "CdromDmaIrqFunc2"},
+    {0x94, "CdromGetInt5errCode"},
+    {0x95, "CdInitSubFunc"},
+    {0x96, "AddCDROMDevice"},
+    {0x97, "AddMemCardDevice"},
+    {0x98, "AddDuartTtyDevice"},
+    {0x99, "AddDummyTtyDevice"},
+    {0x9C, "SetConf"},
+    {0x9D, "GetConf"},
+    {0x9E, "SetCdromIrqAutoAbort"},
+    {0x9F, "SetMem"},
+    {0xA0, "_boot"},
+    {0xA1, "SystemError"},
+    {0xA2, "EnqueueCdIntr"},
+    {0xA3, "DequeueCdIntr"},
+    {0xA4, "CdGetLbn"},
+    {0xA5, "CdReadSector"},
+    {0xA6, "CdGetStatus"},
+    {0xA7, "bufs_cb_0"},
+    {0xA8, "bufs_cb_1"},
+    {0xA9, "bufs_cb_2"},
+    {0xAA, "bufs_cb_3"},
+    {0xAB, "_card_info"},
+    {0xAC, "_card_load"},
+    {0xAD, "_card_auto"},
+    {0xAE, "bufs_cb_4"},
+    {0xAF, "card_write_test"},
+    {0xB2, "_ioabort_raw"},
+    {0xB4, "GetSystemInfo"},
+    {0xFF, NULL},
+};
+
+static const PSXBiosFunc PSX_BIOS_B[] = {
+    {0x00, "alloc_kernel_memory"},
+    {0x01, "free_kernel_memory"},
+    {0x02, "init_timer"},
+    {0x03, "get_timer"},
+    {0x04, "enable_timer_irq"},
+    {0x05, "disable_timer_irq"},
+    {0x06, "restart_timer"},
+    {0x07, "DeliverEvent"},
+    {0x08, "OpenEvent"},
+    {0x09, "CloseEvent"},
+    {0x0A, "WaitEvent"},
+    {0x0B, "TestEvent"},
+    {0x0C, "EnableEvent"},
+    {0x0D, "DisableEvent"},
+    {0x0E, "OpenTh"},
+    {0x0F, "CloseTh"},
+    {0x10, "ChangeTh"},
+    {0x12, "InitPAD2"},
+    {0x13, "StartPAD2"},
+    {0x14, "StopPAD2"},
+    {0x15, "PAD_init2"},
+    {0x16, "PAD_dr"},
+    {0x17, "ReturnFromException"},
+    {0x18, "ResetEntryInt"},
+    {0x19, "HookEntryInt"},
+    {0x20, "UnDeliverEvent"},
+    {0x32, "open"},
+    {0x33, "lseek"},
+    {0x34, "read"},
+    {0x35, "write"},
+    {0x36, "close"},
+    {0x37, "ioctl"},
+    {0x38, "exit"},
+    {0x39, "isatty"},
+    {0x3A, "getc"},
+    {0x3B, "putc"},
+    {0x3C, "getchar"},
+    {0x3D, "putchar"},
+    {0x3E, "gets"},
+    {0x3F, "puts"},
+    {0x40, "cd"},
+    {0x41, "format"},
+    {0x42, "firstfile2"},
+    {0x43, "nextfile"},
+    {0x44, "rename"},
+    {0x45, "erase"},
+    {0x46, "undelete"},
+    {0x47, "AddDrv"},
+    {0x48, "RemoveDrv"},
+    {0x4A, "InitCARD2"},
+    {0x4B, "StartCARD2"},
+    {0x4C, "StopCARD2"},
+    {0x4D, "_card_info_subfunc"},
+    {0x4E, "_card_write"},
+    {0x4F, "_card_read"},
+    {0x50, "_new_card"},
+    {0x54, "_get_errno"},
+    {0x55, "_get_error"},
+    {0x56, "GetC0Table"},
+    {0x57, "GetB0Table"},
+    {0x58, "_card_chan"},
+    {0x59, "testdevice"},
+    {0x5C, "_card_status"},
+    {0x5D, "_card_wait"},
+    {0xFF, NULL},
+};
+
+static const PSXBiosFunc PSX_BIOS_C[] = {
+    {0x00, "EnqueueTimerAndVblankIrqs"},
+    {0x01, "EnqueueSyscallHandler"},
+    {0x02, "SysEnqIntRP"},
+    {0x03, "SysDeqIntRP"},
+    {0x04, "get_free_EvCB_slot"},
+    {0x05, "get_free_TCB_slot"},
+    {0x06, "ExceptionHandler"},
+    {0x07, "InstallExceptionHandlers"},
+    {0x08, "SysInitMemory"},
+    {0x09, "SysInitKernelVar"},
+    {0x0A, "ChangeClearRCnt"},
+    {0x0C, "InitDefInt"},
+    {0x0D, "SetIrqAutoAck"},
+    {0x19, "_ioabort"},
+    {0x1A, "set_card_find_mode"},
+    {0x1C, "SysMalloc"},
+    {0x1D, "get_card_find_mode"},
+    {0xFF, NULL}, // sentinel
+};
+
+static const char* psx_bios_lookup(u8 sel, u8 fn) {
+    const PSXBiosFunc* table = NULL;
+
+    if(sel == 0xa0)
+        table = PSX_BIOS_A;
+    else if(sel == 0xb0)
+        table = PSX_BIOS_B;
+    else if(sel == 0xc0)
+        table = PSX_BIOS_C;
+    else
+        return NULL;
+
+    for(; table->name || table->fn != 0xFF; table++) {
+        if(table->fn == fn) return table->name;
+        if(table->fn == 0xFF) break;
+    }
+    return NULL;
+}
+
+void psx_bios_autorename(RDContext* ctx) {
+    RDFunctionSlice functions = rd_get_all_functions(ctx);
+
+    const RDFunction** it;
+    rd_slice_each(it, functions) {
+        const RDFunction* f = *it;
+        if(rd_function_get_n_instructions(f) > 3) continue;
+
+        RDAddress func_addr = rd_function_get_address(f);
+
+        // query at function end to get the full register snapshot
+        // MIPS instructions are always sizeof(u32)
+        RDAddress query_addr =
+            func_addr + ((rd_function_get_n_instructions(f) - 1) * sizeof(u32));
+
+        RDRegValue t1, t2;
+        if(!rd_get_regval(ctx, query_addr, "$t1", &t1)) continue;
+        if(!rd_get_regval(ctx, query_addr, "$t2", &t2)) continue;
+
+        const char* name = psx_bios_lookup(t2, t1);
+        if(name) rd_library_name(ctx, func_addr, name);
+    }
+}

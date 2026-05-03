@@ -1,3 +1,4 @@
+#include "biosfunc.h"
 #include <redasm/redasm.h>
 #include <stdlib.h>
 #include <string.h>
@@ -73,6 +74,7 @@ static bool psx_load(RDLoader* ldr, RDContext* ctx) {
         rd_library_regval(ctx, h->pc0, "$sp", h->s_addr);
     }
 
+    rd_register_hook(ctx, "redasm.finalize", psx_bios_autorename);
     return rd_set_entry_point(ctx, h->pc0, "PSX_EntryPoint");
 }
 
