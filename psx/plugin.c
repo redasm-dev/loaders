@@ -63,8 +63,15 @@ static bool psx_load(RDLoader* ldr, RDContext* ctx) {
     if(!rd_map_input_n(ctx, PSXEXE_TEXT_OFFSET, h->t_addr, h->t_size))
         return false;
 
-    if(h->gp0) rd_library_name(ctx, h->gp0, "PSX_gp0");
-    if(h->s_addr) rd_library_name(ctx, h->s_addr, "PSX_sp0");
+    if(h->gp0) {
+        rd_library_name(ctx, h->gp0, "PSX_gp0");
+        rd_library_regval(ctx, h->pc0, "$gp", h->gp0);
+    }
+
+    if(h->s_addr) {
+        rd_library_name(ctx, h->s_addr, "PSX_sp0");
+        rd_library_regval(ctx, h->pc0, "$sp", h->s_addr);
+    }
 
     return rd_set_entry_point(ctx, h->pc0, "PSX_EntryPoint");
 }
