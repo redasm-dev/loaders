@@ -80,8 +80,6 @@ static void _elf_load_program(ELFFormat* elf, RDContext* ctx) {
         if(!rd_map_segment_n(ctx, name, phdr.p_vaddr, phdr.p_memsz, perm))
             continue;
 
-        RD_LOG_INFO(">>>>>>>> %s: %x", name, phdr.p_filesz);
-
         // p_filesz <= p_memsz always BSS tail has no file backing
         if(phdr.p_filesz > 0) {
             rd_map_input_n(ctx, phdr.p_offset, phdr.p_vaddr,
