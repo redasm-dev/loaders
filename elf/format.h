@@ -28,3 +28,4 @@ const char* elf_read_shname(const ELFFormat* self, RDReader* reader,
                             u32 sh_name);
 
 RDAddress elf_norm(RDContext* ctx, const ELFFormat* elf, RDAddress address);
+void elf_load_kb(RDContext* ctx, const ELFFormat* elf);

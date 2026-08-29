@@ -257,6 +257,7 @@ static bool elf_load(RDLoader* ldr, RDContext* ctx) {
         rd_set_entry_point(ctx, elf_norm(ctx, elf, elf->ehdr.e_entry), NULL);
     }
 
+    elf_load_kb(ctx, elf);
     return true;
 }
 
