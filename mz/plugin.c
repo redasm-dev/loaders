@@ -11,5 +11,3 @@ void rd_plugin_create(void) {
     rd_register_loader(&LE_LOADER);
     rd_register_loader(&PE_LOADER);
 }
-
-const char* rd_plugin_version(void) { return "1.0"; }

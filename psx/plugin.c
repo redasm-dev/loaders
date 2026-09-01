@@ -5,5 +5,3 @@ void rd_plugin_create(void) {
     rd_register_loader(&PSX_BIOS_LOADER);
     rd_register_loader(&PSX_EXE_LOADER);
 }
-
-const char* rd_plugin_version(void) { return "1.0"; }

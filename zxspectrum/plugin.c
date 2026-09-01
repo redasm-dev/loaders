@@ -8,5 +8,3 @@ void rd_plugin_create(void) {
     rd_register_loader(&Z80_LOADER);
     rd_register_loader(&TAP_LOADER);
 }
-
-const char* rd_plugin_version(void) { return "1.0"; }
