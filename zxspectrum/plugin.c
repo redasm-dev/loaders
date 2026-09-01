@@ -3,7 +3,7 @@
 #include "z80/z80.h"
 #include <redasm/redasm.h>
 
-static void zx_plugin_load(void) {
+static void zx_module_load(void) {
     rd_register_loader(&SNA_LOADER);
     rd_register_loader(&Z80_LOADER);
     rd_register_loader(&TAP_LOADER);
@@ -11,5 +11,5 @@ static void zx_plugin_load(void) {
 
 RD_MODULE_EXPORT = {
     .api_version = RD_API_VERSION,
-    .load = zx_plugin_load,
+    .load = zx_module_load,
 };

@@ -156,9 +156,9 @@ static const RDLoaderPlugin XBE_LOADER = {
     .load = xbe_load,
 };
 
-static void xbe_plugin_load(void) { rd_register_loader(&XBE_LOADER); }
+static void xbe_module_load(void) { rd_register_loader(&XBE_LOADER); }
 
 RD_MODULE_EXPORT = {
     .api_version = RD_API_VERSION,
-    .load = xbe_plugin_load,
+    .load = xbe_module_load,
 };

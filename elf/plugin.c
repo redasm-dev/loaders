@@ -303,9 +303,9 @@ static const RDLoaderPlugin ELF_LOADER = {
     .load = elf_load,
 };
 
-static void elf_plugin_load(void) { rd_register_loader(&ELF_LOADER); }
+static void elf_module_load(void) { rd_register_loader(&ELF_LOADER); }
 
 RD_MODULE_EXPORT = {
     .api_version = RD_API_VERSION,
-    .load = elf_plugin_load,
+    .load = elf_module_load,
 };

@@ -4,7 +4,7 @@
 #include "ne/ne.h"
 #include "pe/pe.h"
 
-static void mz_plugin_load(void) {
+static void mz_module_load(void) {
     rd_register_loader(&COM_LOADER);
     rd_register_loader(&MZ_LOADER);
     rd_register_loader(&NE_LOADER);
@@ -14,5 +14,5 @@ static void mz_plugin_load(void) {
 
 RD_MODULE_EXPORT = {
     .api_version = RD_API_VERSION,
-    .load = mz_plugin_load,
+    .load = mz_module_load,
 };
