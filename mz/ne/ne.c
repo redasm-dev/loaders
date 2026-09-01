@@ -118,7 +118,6 @@ static const char* ne_get_processor(const RDLoader* ldr) {
 }
 
 const RDLoaderPlugin NE_LOADER = {
-    .level = RD_API_LEVEL,
     .id = "dos_ne",
     .instance_size = sizeof(NEFormat),
     .get_name = ne_get_name,

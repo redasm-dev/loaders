@@ -148,7 +148,6 @@ static bool xbe_load(RDLoader* ldr, RDContext* ctx) {
 }
 
 static const RDLoaderPlugin XBE_LOADER = {
-    .level = RD_API_LEVEL,
     .id = "xbox_xbe",
     .instance_size = sizeof(XBEFormat),
     .get_name = xbe_get_name,
@@ -157,4 +156,9 @@ static const RDLoaderPlugin XBE_LOADER = {
     .load = xbe_load,
 };
 
-void rd_plugin_create(void) { rd_register_loader(&XBE_LOADER); }
+static void xbe_plugin_load(void) { rd_register_loader(&XBE_LOADER); }
+
+RD_MODULE_EXPORT = {
+    .api_version = RD_API_VERSION,
+    .load = xbe_plugin_load,
+};

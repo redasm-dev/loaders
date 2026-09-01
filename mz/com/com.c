@@ -38,7 +38,6 @@ static const char* com_get_processor(const RDLoader* ldr) {
 }
 
 const RDLoaderPlugin COM_LOADER = {
-    .level = RD_API_LEVEL,
     .id = "dos_com",
     .get_name = com_get_name,
     .get_processor = com_get_processor,

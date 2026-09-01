@@ -79,7 +79,6 @@ static const char* nrom_get_name(const RDLoader* ldr) {
 }
 
 const RDLoaderPlugin NROM_LOADER = {
-    .level = RD_API_LEVEL,
     .id = "nes_nrom",
     .instance_size = sizeof(INesHeader),
     .parse = nrom_parse,

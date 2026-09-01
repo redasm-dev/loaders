@@ -80,7 +80,6 @@ static const char* le_get_processor(const RDLoader* ldr) {
 }
 
 const RDLoaderPlugin LE_LOADER = {
-    .level = RD_API_LEVEL,
     .id = "mz_linear",
     .instance_size = sizeof(LEFormat),
     .get_name = le_get_name,

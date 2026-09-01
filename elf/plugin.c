@@ -295,7 +295,6 @@ static const char* elf_get_processor(const RDLoader* ldr) {
 }
 
 static const RDLoaderPlugin ELF_LOADER = {
-    .level = RD_API_LEVEL,
     .id = "elf",
     .instance_size = sizeof(ELFFormat),
     .get_name = elf_get_name,
@@ -304,4 +303,9 @@ static const RDLoaderPlugin ELF_LOADER = {
     .load = elf_load,
 };
 
-void rd_plugin_create(void) { rd_register_loader(&ELF_LOADER); }
+static void elf_plugin_load(void) { rd_register_loader(&ELF_LOADER); }
+
+RD_MODULE_EXPORT = {
+    .api_version = RD_API_VERSION,
+    .load = elf_plugin_load,
+};

@@ -95,7 +95,6 @@ static const char* mz_get_processor(const RDLoader* ldr) {
 }
 
 const RDLoaderPlugin MZ_LOADER = {
-    .level = RD_API_LEVEL,
     .id = "dos_mz",
     .instance_size = sizeof(MZDosHeader),
     .get_name = mz_get_name,

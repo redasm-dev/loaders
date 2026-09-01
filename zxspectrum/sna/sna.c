@@ -69,7 +69,6 @@ static const char* sna_get_name(const RDLoader* ldr) {
 }
 
 const RDLoaderPlugin SNA_LOADER = {
-    .level = RD_API_LEVEL,
     .id = "zx_spectrum_sna",
     .instance_size = sizeof(SNAFormat),
     .parse = sna_parse,

@@ -69,7 +69,6 @@ static const char* z80_get_name(const RDLoader* ldr) {
 }
 
 const RDLoaderPlugin Z80_LOADER = {
-    .level = RD_API_LEVEL,
     .id = "zx_spectrum_z80",
     .instance_size = sizeof(Z80Format),
     .parse = z80_parse,

@@ -181,7 +181,6 @@ static const char* tap_get_name(const RDLoader* ldr) {
 }
 
 const RDLoaderPlugin TAP_LOADER = {
-    .level = RD_API_LEVEL,
     .id = "zx_spectrum_tap",
     .parse = tap_parse,
     .load = tap_load,

@@ -92,7 +92,6 @@ static const char* psxbios_get_processor(const RDLoader* ldr) {
 }
 
 const RDLoaderPlugin PSX_BIOS_LOADER = {
-    .level = RD_API_LEVEL,
     .id = "psx_bios",
     .get_name = psxbios_get_name,
     .get_processor = psxbios_get_processor,

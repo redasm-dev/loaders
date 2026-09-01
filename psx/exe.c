@@ -82,7 +82,6 @@ static const char* psx_get_processor(const RDLoader* ldr) {
 }
 
 const RDLoaderPlugin PSX_EXE_LOADER = {
-    .level = RD_API_LEVEL,
     .id = "psx_exe",
     .instance_size = sizeof(PsxExeHeader),
     .get_name = psx_get_name,
