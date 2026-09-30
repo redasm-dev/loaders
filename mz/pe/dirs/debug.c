@@ -76,7 +76,7 @@ static void _pe_read_codeview(RDContext* ctx, PEFormat* pe, RDReader* r,
 
         if(pdbname) {
             rd_library_type(ctx, pdbfilename_va, "char", n + 1, RD_TYPE_NONE);
-            rd_library_name(ctx, pdbfilename_va, "__pdb_filename");
+            rd_auto_name(ctx, pdbfilename_va, "__pdb_filename");
             RD_LOG_INFO("PDB 2.0: %s (Server Key: %08X%X)", pdbname,
                         pdb.TimeStamp, pdb.Age);
         }

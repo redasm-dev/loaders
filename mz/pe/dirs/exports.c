@@ -66,7 +66,7 @@ bool pe_read_exports_dir(RDContext* ctx, PEFormat* pe) {
         usize n;
         if(rd_reader_peek_str(r, &n)) {
             rd_library_type(ctx, name_va, "char", n + 1, RD_TYPE_NONE);
-            rd_library_name(ctx, name_va, "__rd_pe_module_name");
+            rd_auto_name(ctx, name_va, "__rd_pe_module_name");
         }
     }
 

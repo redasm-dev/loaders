@@ -1,4 +1,5 @@
 #include "resources.h"
+#include <inttypes.h>
 
 #define PE_RESOURCE_NAME_IS_STRING 0x80000000
 #define PE_RESOURCE_DATA_IS_DIRECTORY 0x80000000
@@ -71,8 +72,8 @@ static void _pe_resource_read_dirs(RDContext* ctx, PEFormat* pe, RDReader* r,
 
             if(pe_from_rva(pe, dataentry.OffsetToData, &data_va) &&
                dataentry.Size) {
-                rd_library_name(ctx, data_va,
-                                rd_format("rsrc_data_%x", data_va));
+                rd_auto_name(ctx, data_va,
+                             rd_format("rsrc_data_%" PRIX64, data_va));
             }
         }
 

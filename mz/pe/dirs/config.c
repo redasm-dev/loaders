@@ -102,7 +102,7 @@ bool pe_read_config_dir(RDContext* ctx, PEFormat* pe) {
 
         rd_library_type(ctx, va, "PE_LOAD_CONFIG_DIRECTORY32", 0, RD_TYPE_NONE);
         rd_library_type(ctx, configdir.SecurityCookie, "u32", 0, RD_TYPE_NONE);
-        rd_library_name(ctx, configdir.SecurityCookie, "__pe_security_cookie");
+        rd_auto_name(ctx, configdir.SecurityCookie, "__pe_security_cookie");
 
         if(is_x86 && configdir.SEHandlerTable) {
             rd_reader_seek(r, configdir.SEHandlerTable);
@@ -127,7 +127,7 @@ bool pe_read_config_dir(RDContext* ctx, PEFormat* pe) {
 
         rd_library_type(ctx, va, "PE_LOAD_CONFIG_DIRECTORY64", 0, RD_TYPE_NONE);
         rd_library_type(ctx, configdir.SecurityCookie, "u64", 0, RD_TYPE_NONE);
-        rd_library_name(ctx, configdir.SecurityCookie, "__pe_security_cookie");
+        rd_auto_name(ctx, configdir.SecurityCookie, "__pe_security_cookie");
 
         if(is_x86 && configdir.SEHandlerTable) {
             rd_reader_seek(r, configdir.SEHandlerTable);

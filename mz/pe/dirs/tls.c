@@ -89,7 +89,7 @@ bool pe_read_tls_dir(RDContext* ctx, PEFormat* pe) {
 
         if(tlsdir.AddressOfIndex) {
             rd_library_type(ctx, tlsdir.AddressOfIndex, "u32", 0, RD_TYPE_NONE);
-            rd_library_name(ctx, tlsdir.AddressOfIndex, "_tls_index");
+            rd_auto_name(ctx, tlsdir.AddressOfIndex, "_tls_index");
         }
 
         callbacks_va = tlsdir.AddressOfCallBacks;
@@ -105,7 +105,7 @@ bool pe_read_tls_dir(RDContext* ctx, PEFormat* pe) {
             // the 64-bit directory -- that's the OS's per-module TLS
             // array index, not a pointer-width quantity.
             rd_library_type(ctx, tlsdir.AddressOfIndex, "u32", 0, RD_TYPE_NONE);
-            rd_library_name(ctx, tlsdir.AddressOfIndex, "_tls_index");
+            rd_auto_name(ctx, tlsdir.AddressOfIndex, "_tls_index");
         }
 
         callbacks_va = tlsdir.AddressOfCallBacks;

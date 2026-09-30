@@ -89,19 +89,17 @@ static void _pe_read_thunks(RDContext* ctx, const PEFormat* pe, RDReader* r,
             rd_library_type(ctx, thunkva + sizeof(u16), "char", n + 1,
                             RD_TYPE_NONE);
 
-            rd_library_name(ctx, thunkva,
-                            rd_format("%s_%s_hint", module, name));
+            rd_auto_name(ctx, thunkva, rd_format("%s_%s_hint", module, name));
 
-            rd_library_name(ctx, thunkva + sizeof(u16),
-                            rd_format("%s_%s_name", module, name));
+            rd_auto_name(ctx, thunkva + sizeof(u16),
+                         rd_format("%s_%s_name", module, name));
 
             rd_set_external(ctx, ft_va, module, RD_EXT_IMPORTED);
             rd_library_name(ctx, ft_va, name);
 
-            if(oft_va != ft_va) {
+            if(oft_va != ft_va)
                 rd_library_name(ctx, oft_va,
                                 rd_format("oft_%s_%s", module, name));
-            }
         }
         else
             rd_set_external_ord(ctx, ft_va, module, oft_thunk.ordinal,
