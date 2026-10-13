@@ -124,7 +124,7 @@ bool pe_read_exports_dir(RDContext* ctx, PEFormat* pe) {
             if(export_name) rd_library_name(ctx, entry_va, export_name);
         }
 
-        const RDSegment* seg = rd_find_segment(ctx, entry_va);
+        const RDSegment* seg = rd_segment_find(ctx, entry_va);
         bool is_func = seg && rd_segment_has_perm(seg, RD_SP_X) &&
                        !_pe_is_linker_boundary(export_name);
 

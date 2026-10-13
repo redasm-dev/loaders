@@ -41,7 +41,7 @@ void ne_load_exports(NEFormat* ne, RDContext* ctx,
         RDAddress addr = entries->data[ordinal - 1];
         if(!addr) continue; // ordinal has no entry table address
 
-        const RDSegment* seg = rd_find_segment(ctx, addr);
+        const RDSegment* seg = rd_segment_find(ctx, addr);
         if(!seg) continue;
 
         if(rd_segment_get_perm(seg) & RD_SP_X) rd_set_function(ctx, addr);
