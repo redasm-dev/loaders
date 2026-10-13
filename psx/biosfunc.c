@@ -1,5 +1,21 @@
 #include "biosfunc.h"
 
+static const RDInstruction PSX_BIOS_STUB[] = {
+    {
+        .mnemonic = "li",
+        .operands = {[0] = {.kind = RD_OP_REG}, [1] = {.kind = RD_OP_IMM}},
+    },
+    {
+        .mnemonic = "jr",
+        .delay_slots = 1,
+        .operands = {[0] = {.kind = RD_OP_REG}},
+    },
+    {
+        .mnemonic = "li",
+        .operands = {[0] = {.kind = RD_OP_REG}, [1] = {.kind = RD_OP_IMM}},
+    },
+};
+
 static const char* psx_bios_lookup(RDContext* ctx, u8 sel, u8 fn) {
     const RDDatum* kb = rd_kb_load(ctx, "psx/bios");
 
@@ -16,28 +32,23 @@ void psx_bios_autorename_hook(RDContext* ctx, const RDHookEvent* e,
     RD_UNUSED(e);
     RD_UNUSED(userdata);
 
-    RDFunctionSlice functions = rd_get_all_functions(ctx);
-    RDIL* rdil = rd_il_create(ctx, NULL);
+    RDAddressSlice functions = rd_get_all_functions(ctx);
 
-    const RDFunction** it;
-    rd_slice_each(it, functions) {
-        const RDFunction* f = *it;
-        if(rd_function_get_n_instructions(f) != 3) continue;
+    const RDAddress* addr;
+    rd_slice_each(addr, functions) {
+        RDInstruction instrs[3];
+        if(!rd_decode_n(ctx, *addr, instrs, rd_count_of(instrs))) continue;
 
-        rd_il_assign(rdil, f);
-        if(!rd_il_run(rdil)) continue;
+        if(!rd_instr_match_n(ctx, instrs, PSX_BIOS_STUB,
+                             rd_count_of(PSX_BIOS_STUB)))
+            continue;
 
-        RDRegValue t1, t2;
-        if(!rd_il_get_regval(rdil, "$t1", &t1)) continue;
-        if(!rd_il_get_regval(rdil, "$t2", &t2)) continue;
+        // jr must go through the register the first li loaded
+        if(instrs[0].operands[0].reg != instrs[1].operands[0].reg) continue;
 
-        const char* name = psx_bios_lookup(ctx, t2, t1);
+        const char* name = psx_bios_lookup(ctx, instrs[0].operands[1].imm,
+                                           instrs[2].operands[1].imm);
 
-        if(name) {
-            RDAddress func_addr = rd_function_get_address(f);
-            rd_library_name(ctx, func_addr, name);
-        }
+        if(name) rd_library_name(ctx, *addr, name);
     }
-
-    rd_il_destroy(rdil);
 }
