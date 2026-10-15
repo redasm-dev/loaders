@@ -72,12 +72,12 @@
 #define ELF_SHF_STRINGS 0x20
 #define ELF_SHF_TLS 0x400
 
-// st_info: binding (high nibble)
+// st_info: binding
 #define ELF_STB_LOCAL 0
 #define ELF_STB_GLOBAL 1
 #define ELF_STB_WEAK 2
 
-// st_info: type (low nibble)
+// st_info: type
 #define ELF_STT_NOTYPE 0
 #define ELF_STT_OBJECT 1
 #define ELF_STT_FUNC 2
@@ -85,12 +85,20 @@
 #define ELF_STT_FILE 4
 #define ELF_STT_TLS 6
 
+// st_other: visibility
+#define ELF_STV_DEFAULT 0
+#define ELF_STV_INTERNAL 1
+#define ELF_STV_HIDDEN 2
+#define ELF_STV_PROTECTED 3
+
 // st_info accessors
 #define ELF_ST_BIND(info) ((info) >> 4)
 #define ELF_ST_TYPE(info) ((info) & 0x0F)
+#define ELF_ST_VISIBILITY(other) ((other) & 0x3)
 
 // special section indices
 #define ELF_SHN_UNDEF 0x0000
+#define ELF_SHN_LORESERVE 0xFF00
 #define ELF_SHN_ABS 0xFFF1
 #define ELF_SHN_COMMON 0xFFF2
 

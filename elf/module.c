@@ -89,40 +89,51 @@ static void _elf_load_program(ELFFormat* elf, RDContext* ctx) {
     }
 }
 
+static bool _elf_sym_is_skipped(const ELFSym* sym, u8 type) {
+    if(type == ELF_STT_SECTION || type == ELF_STT_FILE || type == ELF_STT_TLS)
+        return true;
+
+    if(sym->st_shndx >= ELF_SHN_LORESERVE) return true; // ABS, COMMON, XINDEX
+
+    // undefined and untyped: nothing to name (imports come from relocations)
+    if(sym->st_shndx == ELF_SHN_UNDEF && type != ELF_STT_FUNC &&
+       type != ELF_STT_OBJECT)
+        return true;
+
+    return false;
+}
+
+static bool _elf_sym_is_exported(const ELFSym* sym, u8 bind) {
+    if(bind != ELF_STB_GLOBAL) return false;
+
+    u8 vis = ELF_ST_VISIBILITY(sym->st_other);
+    return vis == ELF_STV_DEFAULT || vis == ELF_STV_PROTECTED;
+}
+
 static void _elf_process_sym(RDContext* ctx, const ELFFormat* elf, RDReader* r,
                              const ELFShdr* strtab, const ELFSym* sym) {
     u8 bind = ELF_ST_BIND(sym->st_info);
     u8 type = ELF_ST_TYPE(sym->st_info);
-
-    // skip local, section, file, and untyped symbols
-    if(bind == ELF_STB_LOCAL) return;
-    if(type == ELF_STT_NOTYPE || type == ELF_STT_SECTION ||
-       type == ELF_STT_FILE || type == ELF_STT_TLS)
-        return;
+    if(_elf_sym_is_skipped(sym, type)) return;
 
     // read symbol name from the section's associated strtab
     rd_reader_seek(r, strtab->sh_offset + sym->st_name);
     const char* name = rd_reader_read_str(r, NULL);
     if(!name || !(*name)) return;
+    if(*name == '$') return; // mapping symbols: markers, not names
 
     bool is_imported = sym->st_shndx == ELF_SHN_UNDEF;
     RDAddress symaddr = elf_norm(ctx, elf, (RDAddress)sym->st_value);
 
-    if(type == ELF_STT_FUNC) {
-        if(is_imported)
-            rd_set_external(ctx, symaddr, NULL, RD_EXT_IMPORTED);
-        else
-            rd_set_function(ctx, symaddr);
+    // imported implies FUNC or OBJECT here (filtered above)
+    if(is_imported)
+        rd_set_external(ctx, symaddr, NULL, RD_EXT_IMPORTED);
+    else if(type == ELF_STT_FUNC)
+        rd_set_function(ctx, symaddr);
 
-        rd_library_name(ctx, symaddr, name);
-    }
-    else if(type == ELF_STT_OBJECT) {
-        if(is_imported) rd_set_external(ctx, symaddr, NULL, RD_EXT_IMPORTED);
-        rd_library_name(ctx, symaddr, name);
-    }
+    rd_library_name(ctx, symaddr, name);
 
-    // mark globals defined in this binary as exported
-    if(!is_imported && bind == ELF_STB_GLOBAL)
+    if(!is_imported && _elf_sym_is_exported(sym, bind))
         rd_set_external(ctx, symaddr, NULL, RD_EXT_EXPORTED);
 }
 
