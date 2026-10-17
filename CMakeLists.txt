@@ -14,6 +14,7 @@ endif()
 
 add_subdirectory(android)
 add_subdirectory(elf)
+add_subdirectory(gameboy)
 add_subdirectory(mz)
 add_subdirectory(nes)
 add_subdirectory(psx)
