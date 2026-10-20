@@ -31,29 +31,24 @@ static inline u32 _dex_parse_version(const DEXHeader* hdr) {
     }
 }
 
+static void _dex_hash_chunk(const char* data, usize n, void* userdata) {
+    RDHash* h = (RDHash*)userdata;
+    rd_hash_update(h, data, n);
+}
+
 static bool _dex_hash_range(RDReader* r, RDHashKind kind, u32 off, u32 len,
                             u8* digest, usize cap) {
     RDHash* h = rd_hash_create(kind);
     if(!h) return false;
 
     bool ok = false;
-    u8 chunk[DEX_HASH_CHUNK_SIZE];
-
     rd_reader_save(r);
     rd_reader_seek(r, off);
 
-    u32 remaining = len;
+    usize n_read =
+        rd_reader_read_block(r, len, DEX_HASH_CHUNK_SIZE, _dex_hash_chunk, h);
 
-    while(remaining) {
-        usize want = remaining < sizeof(chunk) ? remaining : sizeof(chunk);
-        usize n = rd_reader_read(r, chunk, want);
-        if(!n) goto done; // truncated: file_size is wrong
-
-        rd_hash_update(h, (const char*)chunk, n);
-        remaining -= (u32)n;
-    }
-
-    ok = rd_hash_final_to(h, digest, cap);
+    if(n_read == len) ok = rd_hash_final_to(h, digest, cap);
 
 done:
     rd_reader_restore(r);
