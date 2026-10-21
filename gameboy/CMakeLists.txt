@@ -10,7 +10,10 @@ add_library(${PROJECT_NAME} SHARED)
 
 target_sources(${PROJECT_NAME} 
     PRIVATE
-        gba/gba.c
+        sm83/sm83.c
+        sm83/tables.c
+        gb.c
+        gba.c
         module.c
 )
 

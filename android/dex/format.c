@@ -31,9 +31,8 @@ static inline u32 _dex_parse_version(const DEXHeader* hdr) {
     }
 }
 
-static void _dex_hash_chunk(const char* data, usize n, void* userdata) {
-    RDHash* h = (RDHash*)userdata;
-    rd_hash_update(h, data, n);
+static void _dex_hash_chunk(const RDReaderBlock* b) {
+    rd_hash_update((RDHash*)b->userdata, b->data, b->length);
 }
 
 static bool _dex_hash_range(RDReader* r, RDHashKind kind, u32 off, u32 len,
