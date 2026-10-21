@@ -157,7 +157,7 @@ static bool gba_load(RDLoader* ldr, RDContext* ctx) {
 
     rd_map_input_n(ctx, 0, GBA_ROM_START, rd_reader_get_length(r));
     rd_set_entry_point(ctx, GBA_ROM_START, NULL);
-    rd_library_type(ctx, GBA_ROM_START + sizeof(u32), "GBA_HEADER", 0,
+    rd_library_type(ctx, GBA_ROM_START + sizeof(u32), "GBA_CARTRIDGE", 0,
                     RD_TYPE_NONE);
 
     u32 target;
