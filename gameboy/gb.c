@@ -128,7 +128,7 @@ static u16 _gb_calculate_global_checksum(RDReader* r) {
 
     rd_reader_save(r);
     rd_reader_seek(r, 0);
-    rd_reader_read_block(r, rd_reader_get_length(r), 1, // GB_BLOCK_SIZE,
+    rd_reader_read_block(r, rd_reader_get_length(r), GB_BLOCK_SIZE,
                          _gb_read_global_checksum_block, &checksum);
     rd_reader_restore(r);
 
