@@ -3,27 +3,29 @@
 #include <string.h>
 
 #define SM83_REGISTERS(X)                                                      \
-    X(SM83_OP_DE, "de")                                                        \
-    X(SM83_OP_BC, "bc")                                                        \
-    X(SM83_OP_SP, "sp")                                                        \
-    X(SM83_OP_HL, "hl")                                                        \
-    X(SM83_OP_A, "a")                                                          \
-    X(SM83_OP_B, "b")                                                          \
-    X(SM83_OP_C, "c")                                                          \
-    X(SM83_OP_D, "d")                                                          \
-    X(SM83_OP_E, "e")                                                          \
-    X(SM83_OP_L, "l")                                                          \
-    X(SM83_OP_H, "h")
+    X(SM83_OP_AF, "af", false)                                                 \
+    X(SM83_OP_BC, "bc", false)                                                 \
+    X(SM83_OP_DE, "de", false)                                                 \
+    X(SM83_OP_HL, "hl", false)                                                 \
+    X(SM83_OP_SP, "sp", false)                                                 \
+    X(SM83_OP_A, "a", false)                                                   \
+    X(SM83_OP_B, "b", false)                                                   \
+    X(SM83_OP_C, "c", false)                                                   \
+    X(SM83_OP_D, "d", false)                                                   \
+    X(SM83_OP_E, "e", false)                                                   \
+    X(SM83_OP_L, "l", false)                                                   \
+    X(SM83_OP_H, "h", false)                                                   \
+    X(SM83_OP_IND_HL, "hli", true)
 
-#define SM83_REG_NAME2ID_X(id, reg_name)                                       \
+#define SM83_REG_NAME2ID_X(id, reg_name, indirect)                             \
     if(!strcmp(name, reg_name)) return id;
 
-#define SM83_REG_ID2NAME_X(id, reg_name)                                       \
+#define SM83_REG_ID2NAME_X(id, reg_name, indirect)                             \
     case id: return reg_name;
 
-#define SM83_REG_CASE_X(id, reg_name)                                          \
+#define SM83_REG_CASE_X(id, reg_name, indirect)                                \
     case id:                                                                   \
-        op->kind = RD_OP_REG;                                                  \
+        op->kind = (indirect) ? SM83_OP_KIND_IND_REG : RD_OP_REG;              \
         op->reg = id;                                                          \
         break;
 
@@ -53,6 +55,19 @@ static SM83OperandType _sm83_get_reg_id(const char* name) {
     return SM83_OP_NONE;
 }
 
+static void _sm83_emulate_default(RDContext* ctx, const RDInstruction* instr) {
+    rd_foreach_operand(i, op, instr) {
+        if(op->kind != RD_OP_ADDR) continue;
+
+        if(rd_instr_is_jump(instr))
+            rd_add_xref(ctx, instr->address, op->addr, RD_CR_JUMP);
+        else if(rd_instr_is_call(instr))
+            rd_add_xref(ctx, instr->address, op->addr, RD_CR_CALL);
+        else
+            rd_add_xref(ctx, instr->address, op->addr, RD_DR_ADDRESS);
+    }
+}
+
 static bool _sm83_decode_op(RDContext* ctx, RDInstruction* instr,
                             const SM83Instruction* sm83, int idx,
                             usize* cursor) {
@@ -67,7 +82,6 @@ static bool _sm83_decode_op(RDContext* ctx, RDInstruction* instr,
         case SM83_OP_IND_BC:
         case SM83_OP_IND_C:
         case SM83_OP_IND_DE:
-        case SM83_OP_IND_HL:
             op->kind = SM83_OP_KIND_IND_REG;
             op->reg = sm83->operands[idx];
             break;
@@ -80,14 +94,32 @@ static bool _sm83_decode_op(RDContext* ctx, RDInstruction* instr,
             op->reg = sm83->operands[idx];
             break;
 
+        case SM83_OP_N8: {
+            u8 b;
+            if(!rd_read_byte(ctx, _sm83_pc(instr, cursor), &b)) return false;
+
+            (*cursor)++;
+
+            op->kind = RD_OP_CNST;
+            op->cnst = b;
+            break;
+        }
+
         case SM83_OP_N16: {
             u16 imm;
             if(!rd_read_le16(ctx, _sm83_pc(instr, cursor), &imm)) return false;
 
             *cursor += sizeof(u16);
 
-            op->kind = RD_OP_CNST;
-            op->cnst = imm;
+            // are we loading an address?
+            if(sm83->id == SM83_INSTR_LD && idx == 1) {
+                op->kind = RD_OP_ADDR;
+                op->addr = (RDAddress)imm;
+            }
+            else {
+                op->kind = RD_OP_CNST;
+                op->cnst = imm;
+            }
             break;
         }
 
@@ -139,8 +171,17 @@ static bool _sm83_decode_op(RDContext* ctx, RDInstruction* instr,
 
             (*cursor)++;
 
-            op->kind = RD_OP_ADDR;
-            op->addr = 0xFF00 | b;
+            RDAddress addr = 0xFF00 | b;
+
+            if(sm83->id == SM83_INSTR_LDH && idx == 0) {
+                op->kind = RD_OP_MEM;
+                op->mem = addr;
+            }
+            else {
+                op->kind = RD_OP_ADDR;
+                op->addr = addr;
+            }
+
             break;
         }
 
@@ -154,19 +195,6 @@ static bool _sm83_decode_op(RDContext* ctx, RDInstruction* instr,
             op->addr = (RDAddress)addr;
             break;
         }
-
-        case SM83_OP_N8: {
-            u8 b;
-            if(!rd_read_byte(ctx, _sm83_pc(instr, cursor), &b)) return false;
-
-            (*cursor)++;
-
-            op->kind = RD_OP_CNST;
-            op->cnst = b;
-            break;
-        }
-
-        case SM83_OP_AF: break;
 
         case SM83_OP_NONE: break;
         default: return false;
@@ -285,16 +313,12 @@ static void sm83_emulate(RDContext* ctx, const RDInstruction* instr,
                          RDProcessor* p) {
     RD_UNUSED(p);
 
-    rd_foreach_operand(i, op, instr) {
-        if(op->kind != RD_OP_ADDR) continue;
-
-        if(rd_instr_is_jump(instr))
-            rd_add_xref(ctx, instr->address, op->addr, RD_CR_JUMP);
-        else if(rd_instr_is_call(instr))
-            rd_add_xref(ctx, instr->address, op->addr, RD_CR_CALL);
-        else
-            rd_add_xref(ctx, instr->address, op->addr, RD_DR_ADDRESS);
-    }
+    if(instr->id == SM83_INSTR_LD && instr->operands[1].kind == RD_OP_ADDR)
+        rd_add_xref(ctx, instr->address, instr->operands[1].addr, RD_DR_READ);
+    else if(instr->id == SM83_INSTR_LDH && instr->operands[0].kind == RD_OP_MEM)
+        rd_add_xref(ctx, instr->address, instr->operands[0].mem, RD_DR_WRITE);
+    else
+        _sm83_emulate_default(ctx, instr);
 
     if(rd_instr_can_flow(instr)) rd_flow(ctx, instr->address + instr->length);
 }
@@ -355,11 +379,7 @@ static bool sm83_render_operand(RDRenderer* r, const RDInstruction* instr,
                 rd_renderer_text(r, "de", RD_THEME_REG, RD_THEME_DEFAULT);
                 break;
 
-            case SM83_OP_IND_HL:
-                rd_renderer_text(r, "hl", RD_THEME_REG, RD_THEME_DEFAULT);
-                break;
-
-            default: break;
+            default: rd_renderer_reg(r, op->reg); break;
         }
 
         rd_renderer_norm(r, "]");
