@@ -25,7 +25,7 @@
 #define GBA_ROM_SIZE 0x02000000
 
 // http://problemkaputt.de/gbatek.htm#gbacartridgeheader
-typedef struct GBAHeader {
+typedef struct GBACartridge {
     u32 entry_point;
     u8 nintendo_logo[GBA_NINTENDO_LOGO_SIZE];
     char game_title[GBA_GAME_TITLE_SIZE];
@@ -46,9 +46,9 @@ typedef struct GBAHeader {
         u8 unused[26];
         u32 joybus_entry_point;
     } multiboot;
-} GBAHeader;
+} GBACartridge;
 
-static bool _gba_read_header(RDReader* r, GBAHeader* v) {
+static bool _gba_read_cartridge(RDReader* r, GBACartridge* v) {
     rd_reader_read_le32(r, &v->entry_point);
     rd_reader_read_exact(r, &v->nintendo_logo, sizeof(v->nintendo_logo));
     rd_reader_read_exact(r, &v->game_title, sizeof(v->game_title));
@@ -106,7 +106,7 @@ fail:
 
 // ARM "b <label>" with cond=AL is 0xEAxxxxxx
 // the target is relative to pc+8
-static bool _gba_parse_address(const GBAHeader* gba, u32* addr) {
+static bool _gba_parse_address(const GBACartridge* gba, u32* addr) {
     if((gba->entry_point >> 24) != 0xEA) return false;
 
     u32 imm = gba->entry_point & 0x00FFFFFF;
@@ -117,9 +117,9 @@ static bool _gba_parse_address(const GBAHeader* gba, u32* addr) {
 }
 
 static bool gba_parse(RDLoader* ldr, const RDLoaderRequest* req) {
-    GBAHeader* gba = (GBAHeader*)ldr;
+    GBACartridge* gba = (GBACartridge*)ldr;
 
-    if(!_gba_read_header(req->input, gba) || gba->fixed_val != 0x96)
+    if(!_gba_read_cartridge(req->input, gba) || gba->fixed_val != 0x96)
         return false;
 
     if(!_gba_validate_title_or_code(gba->game_title, sizeof(gba->game_title)))
@@ -140,7 +140,7 @@ static bool gba_parse(RDLoader* ldr, const RDLoaderRequest* req) {
 }
 
 static bool gba_load(RDLoader* ldr, RDContext* ctx) {
-    GBAHeader* gba = (GBAHeader*)ldr;
+    GBACartridge* gba = (GBACartridge*)ldr;
     RDReader* r = rd_get_input_reader(ctx);
 
     // clang-format off
@@ -182,7 +182,7 @@ static const char* gba_get_name(const RDLoader* ldr) {
 
 const RDLoaderPlugin GBA = {
     .id = "gameboy_gba",
-    .instance_size = sizeof(GBAHeader),
+    .instance_size = sizeof(GBACartridge),
     .parse = gba_parse,
     .load = gba_load,
     .get_processor = gba_get_processor,

@@ -62,7 +62,7 @@ typedef struct GBCartridge {
     u16 global_checksum;
 } GBCartridge;
 
-static bool _gb_read_header(RDReader* r, GBCartridge* v) {
+static bool _gb_read_cartridge(RDReader* r, GBCartridge* v) {
     rd_reader_read_le32(r, &v->entry_point);
     rd_reader_read_exact(r, &v->nintendo_logo, sizeof(v->nintendo_logo));
     rd_reader_read_exact(r, &v->title, sizeof(v->title));
@@ -161,7 +161,7 @@ static bool gb_parse(RDLoader* ldr, const RDLoaderRequest* req) {
     GBCartridge* gb = (GBCartridge*)ldr;
     rd_reader_seek(req->input, GB_BASE);
 
-    if(!_gb_read_header(req->input, gb)) return false;
+    if(!_gb_read_cartridge(req->input, gb)) return false;
     if(!_gb_validate_header_checksum(req->input, gb)) return false;
     if(!_gb_validate_global_checksum(req->input, gb)) return false;
     if(!_gb_get_mapper(gb)) return false;
