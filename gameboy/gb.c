@@ -184,6 +184,14 @@ static bool gb_load(RDLoader* ldr, RDContext* ctx) {
         rd_map_input_n(ctx, (RDOffset)bank_base, bank_base, GB_ROM_BANK_SIZE);
     }
 
+    rd_map_segment(ctx, "VRAM", 0x8000, 0xA000, RD_SP_RW);
+    rd_map_segment(ctx, "ERAM", 0xA000, 0xC000, RD_SP_RW);
+    rd_map_segment(ctx, "WRAM00", 0xC000, 0xD000, RD_SP_RW);
+    rd_map_segment(ctx, "WRAM01", 0xD000, 0xE000, RD_SP_RW);
+    rd_map_segment(ctx, "OAM", 0xFE00, 0xFEA0, RD_SP_RW);
+    rd_map_segment(ctx, "IOPORTS", 0xFF00, 0xFF80, RD_SP_RW);
+    rd_map_segment(ctx, "HRAM", 0xFF80, 0x10000, RD_SP_RW);
+
     rd_kb_load(ctx, "os/gameboy/gb");
     rd_library_type(ctx, GB_BASE + sizeof(u32), "GB_CARTRIDGE", 0,
                     RD_TYPE_NONE);
