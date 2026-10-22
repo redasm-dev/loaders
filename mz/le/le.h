@@ -2,4 +2,4 @@
 
 #include <redasm/redasm.h>
 
-extern const RDLoaderPlugin LE_LOADER;
+extern const RDLoaderPlugin LE;

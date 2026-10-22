@@ -1,5 +1,4 @@
 #include "ne.h"
-#include "hooks.h"
 #include "ne/entries.h"
 #include "ne/exports.h"
 #include "ne/format.h"
@@ -55,8 +54,6 @@ static bool ne_parse(RDLoader* ldr, const RDLoaderRequest* req) {
 }
 
 static bool ne_load(RDLoader* ldr, RDContext* ctx) {
-    mz_register_dos_hooks(ctx);
-
     NEFormat* ne = (NEFormat*)ldr;
     if(!ne->header.SegCount) return false;
 
@@ -117,11 +114,17 @@ static const char* ne_get_processor(const RDLoader* ldr) {
     return "x86_16";
 }
 
-const RDLoaderPlugin NE_LOADER = {
+static const char* ne_get_platform(const RDLoader* ldr) {
+    RD_UNUSED(ldr);
+    return "ms_dos";
+}
+
+const RDLoaderPlugin NE = {
     .id = "dos_ne",
     .instance_size = sizeof(NEFormat),
     .get_name = ne_get_name,
     .get_processor = ne_get_processor,
+    .get_platform = ne_get_platform,
     .parse = ne_parse,
     .load = ne_load,
 };

@@ -12,6 +12,7 @@ target_sources(${PROJECT_NAME}
     PRIVATE
         com/com.c
         common/common.c
+        common/dos.c
         common/win16_ordinals.c
         le/exports.c
         le/fixup.c
@@ -40,7 +41,6 @@ target_sources(${PROJECT_NAME}
         pe/format.c
         pe/pe.c
         pe/rich.c
-        hooks.c
         module.c
 )
 

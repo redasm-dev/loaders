@@ -49,8 +49,9 @@ static bool pe_parse(RDLoader* ldr, const RDLoaderRequest* req) {
         pe->imagebase = pe->opt64.ImageBase;
         pe->entrypoint = pe->opt64.AddressOfEntryPoint;
     }
-    else
+    else {
         return false;
+    }
 
     rd_reader_read_le32(req->input, &pe->opt32.SectionAlignment);
     rd_reader_read_le32(req->input, &pe->opt32.FileAlignment);
@@ -258,7 +259,7 @@ static void pe_get_options(RDLoader* ldr, RDLoaderOptionBuilder* b) {
                                "Automatic if unset", false);
 }
 
-const RDLoaderPlugin PE_LOADER = {
+const RDLoaderPlugin PE = {
     .id = "win_pe",
     .instance_size = sizeof(PEFormat),
     .get_name = pe_get_name,

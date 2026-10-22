@@ -1,6 +1,5 @@
 #include "com.h"
 #include "common/common.h"
-#include "hooks.h"
 #include <string.h>
 
 #define COM_SEG_START 0x0100
@@ -16,7 +15,6 @@ static bool com_parse(RDLoader* ldr, const RDLoaderRequest* req) {
 
 static bool com_load(RDLoader* ldr, RDContext* ctx) {
     RD_UNUSED(ldr);
-    mz_register_dos_hooks(ctx);
 
     RDReader* r = rd_get_input_reader(ctx);
     usize len = rd_reader_get_length(r);
@@ -37,10 +35,16 @@ static const char* com_get_processor(const RDLoader* ldr) {
     return "x86_16_real";
 }
 
-const RDLoaderPlugin COM_LOADER = {
+static const char* com_get_platform(const RDLoader* ldr) {
+    RD_UNUSED(ldr);
+    return "ms_dos";
+}
+
+const RDLoaderPlugin COM = {
     .id = "dos_com",
     .get_name = com_get_name,
     .get_processor = com_get_processor,
+    .get_platform = com_get_platform,
     .parse = com_parse,
     .load = com_load,
 };

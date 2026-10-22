@@ -1,4 +1,4 @@
-#include "hooks.h"
+#include "dos.h"
 
 // https://www.stanislavs.org/helppc/int_21.html
 
@@ -99,7 +99,15 @@ static void _x86_dos_int_hook(RDContext* ctx, const RDHookEvent* e,
     }
 }
 
-void mz_register_dos_hooks(RDContext* ctx) {
+static void dos_setup(RDContext* ctx, RDPlatform* p) {
+    RD_UNUSED(p);
+
     rd_register_hook(ctx, RD_HOOK_DECODE, "x86.int", _x86_dos_int_hook, NULL);
     rd_register_hook(ctx, RD_HOOK_EMULATE, "x86.int", _x86_dos_int_hook, NULL);
 }
+
+const RDPlatformPlugin DOS = {
+    .id = "ms_dos",
+    .name = "MS-DOS",
+    .setup = dos_setup,
+};

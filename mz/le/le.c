@@ -79,7 +79,7 @@ static const char* le_get_processor(const RDLoader* ldr) {
     return "x86_32";
 }
 
-const RDLoaderPlugin LE_LOADER = {
+const RDLoaderPlugin LE = {
     .id = "mz_linear",
     .instance_size = sizeof(LEFormat),
     .get_name = le_get_name,

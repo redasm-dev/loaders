@@ -1,6 +1,5 @@
 #include "mz.h"
 #include "common/common.h"
-#include "hooks.h"
 
 // References
 // - http://www.techhelpmanual.com/354-exe_file_header_layout.html
@@ -57,8 +56,6 @@ static bool mz_parse(RDLoader* ldr, const RDLoaderRequest* req) {
 }
 
 static bool mz_load(RDLoader* ldr, RDContext* ctx) {
-    mz_register_dos_hooks(ctx);
-
     MZDosHeader* dh = (MZDosHeader*)ldr;
     usize hdrbytes = _mz_header_size(dh);
     usize imgsize = _mz_image_size(dh) - hdrbytes;
@@ -94,11 +91,17 @@ static const char* mz_get_processor(const RDLoader* ldr) {
     return "x86_16_real";
 }
 
-const RDLoaderPlugin MZ_LOADER = {
+static const char* mz_get_platform(const RDLoader* ldr) {
+    RD_UNUSED(ldr);
+    return "ms_dos";
+}
+
+const RDLoaderPlugin MZ = {
     .id = "dos_mz",
     .instance_size = sizeof(MZDosHeader),
     .get_name = mz_get_name,
     .get_processor = mz_get_processor,
+    .get_platform = mz_get_platform,
     .parse = mz_parse,
     .load = mz_load,
 };
