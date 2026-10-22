@@ -79,7 +79,7 @@ static void _dalvik_switch_payload(RDContext* ctx, const RDInstruction* instr,
 }
 
 static void dalvik_setup(RDContext* ctx, RDProcessor* p) {
-    rd_kb_load(ctx, "os/android/dalvik");
+    rd_kb_load(ctx, "platform/android/dalvik");
 
     Dalvik* dalvik = (Dalvik*)p;
 

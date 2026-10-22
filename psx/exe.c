@@ -1,5 +1,4 @@
 #include "exe.h"
-#include "biosfunc.h"
 #include <string.h>
 
 #define PSXEXE_SIGNATURE_SIZE 8
@@ -66,8 +65,6 @@ static bool psx_load(RDLoader* ldr, RDContext* ctx) {
         rd_library_sregval(ctx, h->pc0, "$sp", h->s_addr);
     }
 
-    rd_register_hook(ctx, RD_HOOK_GENERAL, "redasm.finalized",
-                     psx_bios_autorename_hook, NULL);
     return rd_set_entry_point(ctx, h->pc0, "PSX_EntryPoint");
 }
 
@@ -81,11 +78,17 @@ static const char* psx_get_processor(const RDLoader* ldr) {
     return "mips32_le";
 }
 
-const RDLoaderPlugin PSX_EXE_LOADER = {
+static const char* psx_get_platform(const RDLoader* ldr) {
+    RD_UNUSED(ldr);
+    return "psx";
+}
+
+const RDLoaderPlugin PSX_EXE = {
     .id = "psx_exe",
     .instance_size = sizeof(PsxExeHeader),
     .get_name = psx_get_name,
     .get_processor = psx_get_processor,
+    .get_platform = psx_get_platform,
     .parse = psx_parse,
     .load = psx_load,
 };

@@ -199,7 +199,7 @@ bool z80_load_v1(RDContext* ctx, RDReader* r, Z80Format* z80) {
     rd_write(ctx, 0x4000, rd_scratch_data(buf), rd_scratch_length(buf));
 
     zx_set_entry_point(ctx, z80->hdr_base.pc);
-    rd_kb_load(ctx, "os/zxspectrum/rom48k");
+    rd_kb_load(ctx, "platform/zxspectrum/rom48k");
 
     rd_scratch_destroy(buf);
     return true;
@@ -272,7 +272,7 @@ bool z80_load_v2_v3(RDContext* ctx, RDReader* r, Z80Format* z80) {
     }
 
     zx_set_entry_point(ctx, z80->hdr_ext.pc);
-    rd_kb_load(ctx, "os/zxspectrum/rom48k");
+    rd_kb_load(ctx, "platform/zxspectrum/rom48k");
 
     return true;
 }

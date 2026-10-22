@@ -46,6 +46,6 @@ bool sna_load_48k(RDContext* ctx, const SNAFormat* sna) {
     u16 ep;
     if(rd_read_le16(ctx, sna->header.sp, &ep)) zx_set_entry_point(ctx, ep);
 
-    rd_kb_load(ctx, "os/zxspectrum/rom48k");
+    rd_kb_load(ctx, "platform/zxspectrum/rom48k");
     return true;
 }

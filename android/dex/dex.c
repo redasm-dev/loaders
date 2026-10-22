@@ -124,7 +124,7 @@ static bool dex_load(RDLoader* ldr, RDContext* ctx) {
     r = rd_get_reader(ctx);
     dex_type_sections(ctx, r, dex, &map);
 
-    rd_kb_load(ctx, "os/android/dex");
+    rd_kb_load(ctx, "platform/android/dex");
     rd_library_type(ctx, 0, "DEX_HEADER", 0, RD_TYPE_NONE);
 
     // clang-format off

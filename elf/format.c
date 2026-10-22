@@ -221,8 +221,12 @@ RDAddress elf_norm(RDContext* ctx, const ELFFormat* elf, RDAddress address) {
 
 void elf_load_kb(RDContext* ctx, const ELFFormat* elf) {
     switch(elf->ehdr.e_machine) {
-        case ELF_EM_386: rd_kb_load(ctx, "os/linux/glibc/x86_32"); break;
-        case ELF_EM_X86_64: rd_kb_load(ctx, "os/linux/glibc/x86_64"); break;
+        case ELF_EM_386: rd_kb_load(ctx, "platform/linux/glibc/x86_32"); break;
+
+        case ELF_EM_X86_64:
+            rd_kb_load(ctx, "platform/linux/glibc/x86_64");
+            break;
+
         default: break;
     }
 }

@@ -192,7 +192,7 @@ static bool gb_load(RDLoader* ldr, RDContext* ctx) {
     rd_map_segment(ctx, "IOPORTS", 0xFF00, 0xFF80, RD_SP_RW);
     rd_map_segment(ctx, "HRAM", 0xFF80, 0x10000, RD_SP_RW);
 
-    rd_kb_load(ctx, "os/gameboy/gb");
+    rd_kb_load(ctx, "platform/gameboy/gb");
     rd_library_type(ctx, GB_BASE + sizeof(u32), "GB_CARTRIDGE", 0,
                     RD_TYPE_NONE);
 

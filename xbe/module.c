@@ -16,7 +16,7 @@ static void _xbe_read_kernel_thunks(const XBEFormat* xbe, RDContext* ctx) {
     u32 image_end = xbe->header.ImageBase + xbe->header.SizeOfImage;
     if(kt_va < xbe->header.ImageBase || kt_va >= image_end) return;
 
-    rd_kb_load(ctx, "os/xbox/ordinals");
+    rd_kb_load(ctx, "platform/xbox/ordinals");
 
     RDAddress addr = (RDAddress)kt_va;
 

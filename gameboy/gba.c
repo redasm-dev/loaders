@@ -153,7 +153,7 @@ static bool gba_load(RDLoader* ldr, RDContext* ctx) {
     rd_map_segment_n(ctx, "ROM", GBA_ROM_START, rd_reader_get_length(r), RD_SP_RX);
     // clang-format on
 
-    rd_kb_load(ctx, "os/gameboy/gba");
+    rd_kb_load(ctx, "platform/gameboy/gba");
 
     rd_map_input_n(ctx, 0, GBA_ROM_START, rd_reader_get_length(r));
     rd_set_entry_point(ctx, GBA_ROM_START, NULL);

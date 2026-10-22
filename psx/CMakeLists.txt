@@ -11,9 +11,9 @@ add_library(${PROJECT_NAME} SHARED)
 target_sources(${PROJECT_NAME} 
     PRIVATE
         bios.c
-        biosfunc.c
         exe.c
         module.c
+        psx.c
 )
 
 target_include_directories(${PROJECT_NAME}

@@ -1,5 +1,4 @@
 #include "bios.h"
-#include "biosfunc.h"
 
 // 512KB, invariant across all versions
 #define PSX_BIOS_SIZE 0x80000
@@ -76,8 +75,6 @@ static bool psxbios_load(RDLoader* ldr, RDContext* ctx) {
     rd_library_name(ctx, 0x000000B0, "PSX_VectorB");
     rd_library_name(ctx, 0x000000C0, "PSX_VectorC");
 
-    rd_register_hook(ctx, RD_HOOK_GENERAL, "redasm.finalized",
-                     psx_bios_autorename_hook, NULL);
     return rd_set_entry_point(ctx, PSX_BIOS_BASE, "PSX_Reset");
 }
 
@@ -90,11 +87,16 @@ static const char* psxbios_get_processor(const RDLoader* ldr) {
     RD_UNUSED(ldr);
     return "mips32_le";
 }
+static const char* psxbios_get_platform(const RDLoader* ldr) {
+    RD_UNUSED(ldr);
+    return "psx";
+}
 
-const RDLoaderPlugin PSX_BIOS_LOADER = {
+const RDLoaderPlugin PSX_BIOS = {
     .id = "psx_bios",
     .get_name = psxbios_get_name,
     .get_processor = psxbios_get_processor,
+    .get_platform = psxbios_get_platform,
     .parse = psxbios_parse,
     .load = psxbios_load,
 };

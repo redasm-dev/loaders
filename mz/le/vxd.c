@@ -39,7 +39,7 @@ void le_load_vxd(const LEFormat* le, RDContext* ctx) {
     RDAddress ddb_addr = le_exports_entry(le, 1, ctx);
     if(!ddb_addr) return;
 
-    rd_kb_load(ctx, "os/win16/types");
+    rd_kb_load(ctx, "platform/win16/types");
     rd_library_type(ctx, ddb_addr, "VxDDescBlock", 0, RD_TYPE_NONE);
 
     RDReader* r = rd_get_reader(ctx);

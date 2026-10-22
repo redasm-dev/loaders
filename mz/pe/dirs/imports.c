@@ -157,10 +157,10 @@ bool pe_read_imports_dir(RDContext* ctx, const PEFormat* pe) {
             char* import_stem = _pe_get_import_name_stem(mod);
 
             const char* kb_path =
-                rd_format("os/win32/functions/%s", import_stem);
+                rd_format("platform/win32/functions/%s", import_stem);
             rd_kb_load(ctx, kb_path);
 
-            kb_path = rd_format("os/win32/ordinals/%s", import_stem);
+            kb_path = rd_format("platform/win32/ordinals/%s", import_stem);
             rd_kb_load(ctx, kb_path);
 
             rd_free(import_stem);

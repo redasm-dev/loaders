@@ -2,4 +2,4 @@
 
 #include <redasm/redasm.h>
 
-extern const RDLoaderPlugin PSX_BIOS_LOADER;
+extern const RDLoaderPlugin PSX_BIOS;
