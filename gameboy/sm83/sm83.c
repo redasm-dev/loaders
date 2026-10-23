@@ -230,11 +230,6 @@ static void _sm83_categorize(RDInstruction* instr,
             break;
         }
 
-        case SM83_INSTR_HALT:
-            instr->no_ret = true;
-            instr->flow = RD_IF_STOP;
-            break;
-
         default: break;
     }
 }
