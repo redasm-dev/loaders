@@ -3,28 +3,28 @@
 #include <string.h>
 
 #define SM83_REGISTERS(X)                                                      \
-    X(SM83_OP_AF, "af", false)                                                 \
-    X(SM83_OP_BC, "bc", false)                                                 \
-    X(SM83_OP_DE, "de", false)                                                 \
-    X(SM83_OP_HL, "hl", false)                                                 \
-    X(SM83_OP_SP, "sp", false)                                                 \
-    X(SM83_OP_A, "a", false)                                                   \
-    X(SM83_OP_B, "b", false)                                                   \
-    X(SM83_OP_C, "c", false)                                                   \
-    X(SM83_OP_D, "d", false)                                                   \
-    X(SM83_OP_E, "e", false)                                                   \
-    X(SM83_OP_L, "l", false)                                                   \
-    X(SM83_OP_H, "h", false)
+    X(SM83_OP_AF, "af")                                                        \
+    X(SM83_OP_BC, "bc")                                                        \
+    X(SM83_OP_DE, "de")                                                        \
+    X(SM83_OP_HL, "hl")                                                        \
+    X(SM83_OP_SP, "sp")                                                        \
+    X(SM83_OP_A, "a")                                                          \
+    X(SM83_OP_B, "b")                                                          \
+    X(SM83_OP_C, "c")                                                          \
+    X(SM83_OP_D, "d")                                                          \
+    X(SM83_OP_E, "e")                                                          \
+    X(SM83_OP_L, "l")                                                          \
+    X(SM83_OP_H, "h")
 
-#define SM83_REG_NAME2ID_X(id, reg_name, indirect)                             \
+#define SM83_REG_NAME2ID_X(id, reg_name)                                       \
     if(!strcmp(name, reg_name)) return id;
 
-#define SM83_REG_ID2NAME_X(id, reg_name, indirect)                             \
+#define SM83_REG_ID2NAME_X(id, reg_name)                                       \
     case id: return reg_name;
 
-#define SM83_REG_CASE_X(id, reg_name, indirect)                                \
+#define SM83_REG_CASE_X(id, reg_name)                                          \
     case id:                                                                   \
-        op->kind = (indirect) ? SM83_OP_KIND_IND_REG : RD_OP_REG;              \
+        op->kind = RD_OP_REG;                                                  \
         op->reg = id;                                                          \
         break;
 
@@ -56,6 +56,13 @@ static SM83OperandType _sm83_get_reg_id(const char* name) {
 
 static void _sm83_emulate_default(RDContext* ctx, const RDInstruction* instr) {
     rd_foreach_operand(i, op, instr) {
+        if(op->kind == RD_OP_MEM) {
+            // only stores (ld [nn], r / ldh [n], a) have it as destination
+            rd_add_xref(ctx, instr->address, op->mem,
+                        i == 0 ? RD_DR_WRITE : RD_DR_READ);
+            continue;
+        }
+
         if(op->kind != RD_OP_ADDR) continue;
 
         if(rd_instr_is_jump(instr))
@@ -176,17 +183,8 @@ static bool _sm83_decode_op(RDContext* ctx, RDInstruction* instr,
 
             (*cursor)++;
 
-            RDAddress addr = 0xFF00 | b;
-
-            if(sm83->id == SM83_INSTR_LDH && idx == 0) {
-                op->kind = RD_OP_MEM;
-                op->mem = addr;
-            }
-            else {
-                op->kind = RD_OP_ADDR;
-                op->addr = addr;
-            }
-
+            op->kind = RD_OP_MEM;
+            op->mem = 0xFF00 | b;
             break;
         }
 
@@ -284,7 +282,7 @@ static bool sm83_query_reg(RDQueryReg* q, RDProcessor* p) {
 
     if(q->kind == RD_QUERY_REG_BY_ID) {
         q->name = _sm83_get_reg_name(q->id);
-        if(!q->name) return NULL;
+        if(!q->name) return false;
     }
 
     else if(q->kind == RD_QUERY_REG_BY_NAME) {
@@ -383,12 +381,6 @@ static void _sm83_track_regs(RDContext* ctx, const RDInstruction* instr) {
             _sm83_step_hl(ctx, dst);
             _sm83_step_hl(ctx, src);
 
-            if((dst->kind == SM83_OP_KIND_IND_REG &&
-                dst->reg == SM83_OP_IND_HL) ||
-               (src->kind == SM83_OP_KIND_IND_REG &&
-                src->reg == SM83_OP_IND_HL))
-                rd_del_regval_id(ctx, SM83_OP_HL);
-
             if(dst->kind != RD_OP_REG) break;
 
             if(src->kind == RD_OP_CNST) {
@@ -474,7 +466,7 @@ static void _sm83_report_writes(RDContext* ctx, const RDInstruction* instr) {
         addr = dst->mem;
     }
     else if(instr->id == SM83_INSTR_LDH && dst->kind == SM83_OP_KIND_IND_REG &&
-            dst->reg == SM83_OP_IND_C) {
+            dst->reg == SM83_OP_C) {
         RDRegValue c;
         if(!rd_get_regval_id(ctx, SM83_OP_C, &c)) return; // address unknown
         addr = 0xFF00 | (c & 0xFF);
@@ -498,8 +490,6 @@ static void sm83_emulate(RDContext* ctx, const RDInstruction* instr,
 
     if(instr->id == SM83_INSTR_LD && instr->operands[1].kind == RD_OP_ADDR)
         rd_add_xref(ctx, instr->address, instr->operands[1].addr, RD_DR_READ);
-    else if(instr->id == SM83_INSTR_LDH && instr->operands[0].kind == RD_OP_MEM)
-        rd_add_xref(ctx, instr->address, instr->operands[0].mem, RD_DR_WRITE);
     else
         _sm83_emulate_default(ctx, instr);
 
