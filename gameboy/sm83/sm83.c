@@ -123,10 +123,11 @@ static bool _sm83_decode_op(RDContext* ctx, RDInstruction* instr,
 
             *cursor += sizeof(u16);
 
-            // are we loading an address?
+            // 'ld rr, nn' can load a pointer or a number: it stays an
+            // immediate until an access proves it is an address
             if(sm83->id == SM83_INSTR_LD && idx == 1) {
-                op->kind = RD_OP_ADDR;
-                op->addr = (RDAddress)imm;
+                op->kind = RD_OP_IMM;
+                op->imm = imm;
             }
             else {
                 op->kind = RD_OP_CNST;
@@ -347,6 +348,130 @@ static void sm83_decode(RDContext* ctx, RDInstruction* instr, RDProcessor* p) {
     _sm83_categorize(instr, sm83_instr);
 }
 
+static bool _sm83_is_rmw(u32 id) {
+    switch(id) {
+        case SM83_INSTR_INC:
+        case SM83_INSTR_DEC:
+        case SM83_INSTR_SWAP:
+        case SM83_INSTR_RL:
+        case SM83_INSTR_RLC:
+        case SM83_INSTR_RR:
+        case SM83_INSTR_RRC:
+        case SM83_INSTR_SLA:
+        case SM83_INSTR_SRA:
+        case SM83_INSTR_SRL:
+        case SM83_INSTR_SET:
+        case SM83_INSTR_RES: return true;
+        default: break;
+    }
+
+    return false;
+}
+
+static bool _sm83_is_pair(RDReg reg) {
+    return reg == SM83_OP_BC || reg == SM83_OP_DE || reg == SM83_OP_HL;
+}
+
+static RDReg _sm83_pair_of(RDReg reg) {
+    switch(reg) {
+        case SM83_OP_B:
+        case SM83_OP_C: return SM83_OP_BC;
+        case SM83_OP_D:
+        case SM83_OP_E: return SM83_OP_DE;
+        case SM83_OP_H:
+        case SM83_OP_L: return SM83_OP_HL;
+        default: break;
+    }
+
+    return reg;
+}
+
+// 'info' describes a register that is being used as an address: if it was
+// loaded by 'ld <reg>, nn' (the setter is checked, it may be stale or a
+// partial write), that immediate is an address
+static void _sm83_mark_pointer(RDContext* ctx, RDReg reg,
+                               const RDRegValueInfo* info) {
+    RDInstruction ld;
+    if(!rd_decode(ctx, info->setter, &ld)) return;
+    if(ld.id != SM83_INSTR_LD) return;
+    if(ld.operands[0].kind != RD_OP_REG || ld.operands[0].reg != reg) return;
+    if(ld.operands[1].kind != RD_OP_IMM || ld.operands[1].imm != info->value)
+        return;
+
+    rd_add_xref(ctx, info->setter, (RDAddress)info->value, RD_DR_ADDRESS);
+}
+
+// Address used by a [reg] operand, when known.
+// 'pointer' is set when the address comes from a 16-bit register loaded by 'ld
+// rr, nn'.
+static bool _sm83_ind_address(RDContext* ctx, const RDOperand* op,
+                              RDAddress* addr, RDRegValueInfo* info) {
+    if(op->kind != SM83_OP_KIND_IND_REG) return false;
+
+    if(op->reg == SM83_OP_C) { // ldh [c]: $FF00 + c
+        if(!rd_get_regval_info_id(ctx, SM83_OP_C, info)) return false;
+        *addr = 0xFF00 | (info->value & 0xFF);
+        return true;
+    }
+
+    if(!_sm83_is_pair(op->reg)) return false;
+    if(!rd_get_regval_info_id(ctx, op->reg, info)) return false;
+
+    *addr = (RDAddress)(info->value & 0xFFFF);
+    return true;
+}
+
+// Accesses through a register with a known value are accesses to an address
+static void _sm83_deref(RDContext* ctx, const RDInstruction* instr) {
+    bool rmw = _sm83_is_rmw(instr->id);
+    bool store = instr->id == SM83_INSTR_LD || instr->id == SM83_INSTR_LDH;
+
+    rd_foreach_operand(i, op, instr) {
+        RDAddress addr;
+        RDRegValueInfo info;
+        if(!_sm83_ind_address(ctx, op, &addr, &info)) continue;
+        if(!rd_is_address(ctx, addr)) continue;
+
+        if(i == 0 && (store || rmw))
+            rd_add_xref(ctx, instr->address, addr, RD_DR_WRITE);
+
+        if(i > 0 || rmw) rd_add_xref(ctx, instr->address, addr, RD_DR_READ);
+
+        if(_sm83_is_pair(op->reg)) _sm83_mark_pointer(ctx, op->reg, &info);
+    }
+
+    // jp hl
+    if(instr->id == SM83_INSTR_JP && instr->operands[0].kind == RD_OP_REG &&
+       instr->operands[0].reg == SM83_OP_HL) {
+        RDRegValueInfo info;
+
+        if(rd_get_regval_info_id(ctx, SM83_OP_HL, &info) &&
+           rd_is_address(ctx, (RDAddress)info.value)) {
+            rd_add_xref(ctx, instr->address, (RDAddress)info.value, RD_CR_JUMP);
+            _sm83_mark_pointer(ctx, SM83_OP_HL, &info);
+        }
+    }
+}
+
+// 'add a, l' with hl loaded by 'ld hl, nn': hl is the base of a table
+static void _sm83_base_index(RDContext* ctx, const RDInstruction* instr) {
+    if(instr->id != SM83_INSTR_ADD) return;
+
+    const RDOperand* dst = &instr->operands[0];
+    const RDOperand* src = &instr->operands[1];
+    if(dst->kind != RD_OP_REG || dst->reg != SM83_OP_A) return;
+    if(src->kind != RD_OP_REG) return;
+
+    RDReg pair = _sm83_pair_of(src->reg);
+    if(pair == src->reg || !_sm83_is_pair(pair)) return; // not a half
+
+    RDRegValueInfo info;
+    if(!rd_get_regval_info_id(ctx, pair, &info)) return;
+    if(!rd_is_address(ctx, (RDAddress)info.value)) return;
+
+    _sm83_mark_pointer(ctx, pair, &info);
+}
+
 static void _sm83_forget(RDContext* ctx, const RDOperand* op) {
     if(op->kind == RD_OP_REG) rd_del_regval_id(ctx, op->reg);
 }
@@ -386,8 +511,8 @@ static void _sm83_track_regs(RDContext* ctx, const RDInstruction* instr) {
             if(src->kind == RD_OP_CNST) {
                 rd_set_regval_id(ctx, dst->reg, src->cnst);
             }
-            else if(src->kind == RD_OP_ADDR) {
-                rd_set_regval_id(ctx, dst->reg, src->addr);
+            else if(src->kind == RD_OP_IMM) {
+                rd_set_regval_id(ctx, dst->reg, src->imm);
             }
             else if(src->kind == RD_OP_REG) {
                 RDRegValue v;
@@ -450,29 +575,39 @@ static void _sm83_track_regs(RDContext* ctx, const RDInstruction* instr) {
     }
 }
 
-// Reports stores whose address is a plain bus address.
-// The value is attached when the source register is known, otherwise the write
-// is still reported.
+// Reports stores whose address is known: a plain bus address or a pointer
+// register with a known value. The value is attached when it is known,
+// otherwise the write is still reported.
 static void _sm83_report_writes(RDContext* ctx, const RDInstruction* instr) {
-    if(instr->id != SM83_INSTR_LD && instr->id != SM83_INSTR_LDH) return;
+    bool store = instr->id == SM83_INSTR_LD || instr->id == SM83_INSTR_LDH;
+    if(!store && !_sm83_is_rmw(instr->id)) return;
 
     const RDOperand* dst = &instr->operands[0];
     const RDOperand* src = &instr->operands[1];
-    if(src->kind != RD_OP_REG) return;
 
     RDAddress addr;
 
     if(dst->kind == RD_OP_MEM) {
         addr = dst->mem;
     }
-    else if(instr->id == SM83_INSTR_LDH && dst->kind == SM83_OP_KIND_IND_REG &&
-            dst->reg == SM83_OP_C) {
-        RDRegValue c;
-        if(!rd_get_regval_id(ctx, SM83_OP_C, &c)) return; // address unknown
-        addr = 0xFF00 | (c & 0xFF);
-    }
     else {
-        return; // [hl], [bc], [de]: address not tracked
+        RDRegValueInfo info;
+        if(!_sm83_ind_address(ctx, dst, &addr, &info)) return;
+    }
+
+    if(!store) { // read-modify-write: the new value is not computed
+        rd_bus_write_unknown(ctx, addr, 1);
+        return;
+    }
+
+    if(src->kind == RD_OP_CNST) {
+        rd_bus_write(ctx, addr, 1, src->cnst);
+        return;
+    }
+
+    if(src->kind != RD_OP_REG) {
+        rd_bus_write_unknown(ctx, addr, 1);
+        return;
     }
 
     u8 size = src->reg == SM83_OP_SP ? 2 : 1;
@@ -488,12 +623,12 @@ static void sm83_emulate(RDContext* ctx, const RDInstruction* instr,
                          RDProcessor* p) {
     RD_UNUSED(p);
 
-    if(instr->id == SM83_INSTR_LD && instr->operands[1].kind == RD_OP_ADDR)
-        rd_add_xref(ctx, instr->address, instr->operands[1].addr, RD_DR_READ);
-    else
-        _sm83_emulate_default(ctx, instr);
+    _sm83_emulate_default(ctx, instr);
 
-    _sm83_report_writes(ctx, instr); // before tracking: sees the old values
+    // all of these see the registers as they were before the instruction
+    _sm83_deref(ctx, instr);
+    _sm83_base_index(ctx, instr);
+    _sm83_report_writes(ctx, instr);
     _sm83_track_regs(ctx, instr);
 
     if(rd_instr_can_flow(instr)) rd_flow(ctx, instr->address + instr->length);
