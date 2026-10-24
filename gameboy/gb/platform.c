@@ -18,7 +18,12 @@ static const GBInterrupt GB_INTERRUPTS[] = {
 // program enabling them in IE.
 // Vectors of interrupts that are never enabled are left alone, they often
 // contain padding or data.
-static void _gb_enable_interrupt(RDContext* ctx, const GBInterrupt* irq) {
+static void _gb_enable_interrupt(RDContext* ctx, const GBInterrupt* irq,
+                                 RDAddress from) {
+    // record who enabled it, even if the vector is already a function
+    // (another write may enable it too)
+    rd_add_xref(ctx, from, irq->vector, RD_DR_ADDRESS);
+
     // idempotent: the same write can be emulated several times
     if(rd_is_function(ctx, irq->vector)) return;
 
@@ -39,7 +44,7 @@ static void _gb_bus_write(RDContext* ctx, const RDHookEvent* e,
 
     for(usize i = 0; i < rd_count_of(GB_INTERRUPTS); i++) {
         if(ie & (1U << GB_INTERRUPTS[i].bit))
-            _gb_enable_interrupt(ctx, &GB_INTERRUPTS[i]);
+            _gb_enable_interrupt(ctx, &GB_INTERRUPTS[i], e->bus.from);
     }
 }
 
