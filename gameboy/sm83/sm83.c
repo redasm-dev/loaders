@@ -14,8 +14,7 @@
     X(SM83_OP_D, "d", false)                                                   \
     X(SM83_OP_E, "e", false)                                                   \
     X(SM83_OP_L, "l", false)                                                   \
-    X(SM83_OP_H, "h", false)                                                   \
-    X(SM83_OP_IND_HL, "hli", true)
+    X(SM83_OP_H, "h", false)
 
 #define SM83_REG_NAME2ID_X(id, reg_name, indirect)                             \
     if(!strcmp(name, reg_name)) return id;
@@ -31,7 +30,7 @@
 
 typedef enum {
     SM83_OP_KIND_COND = RD_OP_USERBASE,
-    SM83_OP_KIND_IND_REG,
+    SM83_OP_KIND_IND_REG, // [reg]
     SM83_OP_KIND_SYS,
 } SM83Operands;
 
@@ -68,6 +67,12 @@ static void _sm83_emulate_default(RDContext* ctx, const RDInstruction* instr) {
     }
 }
 
+static void _sm83_ind_reg(RDOperand* op, SM83OperandType reg, i32 step) {
+    op->kind = SM83_OP_KIND_IND_REG;
+    op->reg = reg;
+    op->userdata1 = (u32)step;
+}
+
 static bool _sm83_decode_op(RDContext* ctx, RDInstruction* instr,
                             const SM83Instruction* sm83, int idx,
                             usize* cursor) {
@@ -79,12 +84,12 @@ static bool _sm83_decode_op(RDContext* ctx, RDInstruction* instr,
     switch(sm83->operands[idx]) {
         SM83_REGISTERS(SM83_REG_CASE_X)
 
-        case SM83_OP_IND_BC:
-        case SM83_OP_IND_C:
-        case SM83_OP_IND_DE:
-            op->kind = SM83_OP_KIND_IND_REG;
-            op->reg = sm83->operands[idx];
-            break;
+        case SM83_OP_IND_BC: _sm83_ind_reg(op, SM83_OP_BC, 0); break;
+        case SM83_OP_IND_DE: _sm83_ind_reg(op, SM83_OP_DE, 0); break;
+        case SM83_OP_IND_C: _sm83_ind_reg(op, SM83_OP_C, 0); break;
+        case SM83_OP_IND_HL: _sm83_ind_reg(op, SM83_OP_HL, 0); break;
+        case SM83_OP_IND_HLI: _sm83_ind_reg(op, SM83_OP_HL, +1); break;
+        case SM83_OP_IND_HLD: _sm83_ind_reg(op, SM83_OP_HL, -1); break;
 
         case SM83_OP_COND_Z:
         case SM83_OP_COND_NZ:
@@ -290,6 +295,9 @@ static bool sm83_query_reg(RDQueryReg* q, RDProcessor* p) {
         return false;
     }
 
+    if(!(q->want & (RD_QUERY_REG_WANT_MASK | RD_QUERY_REG_WANT_ROOT)))
+        return true;
+
     SM83OperandType root;
     RDRegMask mask;
     if(!_sm83_reg_layout((SM83OperandType)q->id, &root, &mask)) return false;
@@ -353,12 +361,28 @@ static void _sm83_forget_all(RDContext* ctx) {
     rd_del_regval_id(ctx, SM83_OP_HL);
 }
 
+// [hli] / [hld] move hl after the access
+static void _sm83_step_hl(RDContext* ctx, const RDOperand* op) {
+    if(op->kind != SM83_OP_KIND_IND_REG || op->reg != SM83_OP_HL) return;
+
+    i32 step = op->userdata1;
+    if(!step) return;
+
+    RDRegValue hl;
+    if(!rd_get_regval_id(ctx, SM83_OP_HL, &hl)) return;
+
+    rd_set_regval_id(ctx, SM83_OP_HL, (hl + (RDRegValue)(i64)step) & 0xFFFF);
+}
+
 static void _sm83_track_regs(RDContext* ctx, const RDInstruction* instr) {
     const RDOperand* dst = &instr->operands[0];
     const RDOperand* src = &instr->operands[1];
 
     switch(instr->id) {
         case SM83_INSTR_LD: {
+            _sm83_step_hl(ctx, dst);
+            _sm83_step_hl(ctx, src);
+
             if((dst->kind == SM83_OP_KIND_IND_REG &&
                 dst->reg == SM83_OP_IND_HL) ||
                (src->kind == SM83_OP_KIND_IND_REG &&
@@ -492,29 +516,15 @@ static bool sm83_render_operand(RDRenderer* r, const RDInstruction* instr,
     const RDOperand* op = &instr->operands[idx];
 
     if(op->kind == SM83_OP_KIND_COND) {
+        // clang-format off
         switch(op->reg) {
-            case SM83_OP_COND_Z: {
-                rd_renderer_text(r, "z", RD_THEME_FAIL, RD_THEME_DEFAULT);
-                return true;
-            }
-
-            case SM83_OP_COND_NZ: {
-                rd_renderer_text(r, "nz", RD_THEME_FAIL, RD_THEME_DEFAULT);
-                return true;
-            }
-
-            case SM83_OP_COND_C: {
-                rd_renderer_text(r, "c", RD_THEME_FAIL, RD_THEME_DEFAULT);
-                return true;
-            }
-
-            case SM83_OP_COND_NC: {
-                rd_renderer_text(r, "nc", RD_THEME_FAIL, RD_THEME_DEFAULT);
-                return true;
-            }
-
+            case SM83_OP_COND_Z: rd_renderer_text(r, "z", RD_THEME_FAIL, RD_THEME_DEFAULT); return true;
+            case SM83_OP_COND_NZ: rd_renderer_text(r, "nz", RD_THEME_FAIL, RD_THEME_DEFAULT); return true;
+            case SM83_OP_COND_C: rd_renderer_text(r, "c", RD_THEME_FAIL, RD_THEME_DEFAULT); return true;
+            case SM83_OP_COND_NC: rd_renderer_text(r, "nc", RD_THEME_FAIL, RD_THEME_DEFAULT); return true;
             default: break;
         }
+        // clang-format on
 
         return false;
     }
@@ -527,22 +537,14 @@ static bool sm83_render_operand(RDRenderer* r, const RDInstruction* instr,
 
     if(op->kind == SM83_OP_KIND_IND_REG) {
         rd_renderer_norm(r, "[");
+        rd_renderer_reg(r, op->reg);
 
-        switch(op->reg) {
-            case SM83_OP_IND_BC:
-                rd_renderer_text(r, "bc", RD_THEME_REG, RD_THEME_DEFAULT);
-                break;
-
-            case SM83_OP_IND_C:
-                rd_renderer_text(r, "c", RD_THEME_REG, RD_THEME_DEFAULT);
-                break;
-
-            case SM83_OP_IND_DE:
-                rd_renderer_text(r, "de", RD_THEME_REG, RD_THEME_DEFAULT);
-                break;
-
-            default: rd_renderer_reg(r, op->reg); break;
-        }
+        // use RGBDS spelling: hli / hld
+        i32 step = op->userdata1;
+        if(step > 0)
+            rd_renderer_text(r, "i", RD_THEME_REG, RD_THEME_DEFAULT);
+        else if(step < 0)
+            rd_renderer_text(r, "d", RD_THEME_REG, RD_THEME_DEFAULT);
 
         rd_renderer_norm(r, "]");
         return true;
