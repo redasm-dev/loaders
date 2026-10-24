@@ -61,8 +61,9 @@ static void _dalvik_switch_payload(RDContext* ctx, const RDInstruction* instr,
         keys = payload + 4;
         targets = keys + ((u64)size * sizeof(u32));
     }
-    else
+    else {
         return;
+    }
 
     rd_library_type(ctx, payload, tname, 0, RD_TYPE_NONE);
     if(keys) rd_library_type(ctx, keys, "i32", size, RD_TYPE_NONE);
@@ -356,8 +357,8 @@ static bool dalvik_query_reg(RDQueryReg* q, RDProcessor* p) {
         q->mask.shift = 0;
     }
 
-    // no aliases either: vN is its own canonical form
-    if(q->want & RD_QUERY_REG_WANT_CANONICAL) q->canonical_name = q->name;
+    // no aliases either: vN is its own root form
+    if(q->want & RD_QUERY_REG_WANT_ROOT) q->root_name = q->name;
 
     return true;
 }
