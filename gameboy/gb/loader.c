@@ -1,4 +1,4 @@
-#include "gb.h"
+#include "loader.h"
 #include <string.h>
 
 #define GB_BLOCK_SIZE 512
@@ -205,6 +205,11 @@ static const char* gb_get_processor(const RDLoader* ldr) {
     return "sm83";
 }
 
+static const char* gb_get_platform(const RDLoader* ldr) {
+    RD_UNUSED(ldr);
+    return "gameboy";
+}
+
 static const char* gb_get_name(const RDLoader* ldr) {
     const GBCartridge* gb = (const GBCartridge*)ldr;
 
@@ -215,11 +220,12 @@ static const char* gb_get_name(const RDLoader* ldr) {
                      _gb_get_mapper(gb), _gb_get_rom_size(gb));
 }
 
-const RDLoaderPlugin GB = {
+const RDLoaderPlugin GB_LOADER = {
     .id = "gameboy_gb",
     .instance_size = sizeof(GBCartridge),
     .parse = gb_parse,
     .load = gb_load,
     .get_processor = gb_get_processor,
+    .get_platform = gb_get_platform,
     .get_name = gb_get_name,
 };

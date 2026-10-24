@@ -2,4 +2,4 @@
 
 #include <redasm/redasm.h>
 
-extern const RDLoaderPlugin GB;
+extern const RDLoaderPlugin GB_LOADER;

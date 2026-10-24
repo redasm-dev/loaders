@@ -234,6 +234,40 @@ static void _sm83_categorize(RDInstruction* instr,
     }
 }
 
+// 8-bit halves live inside their 16-bit pair, so a write to 'h' or a read of
+// 'bc' stay coherent in the regval map.
+// 'sp' and the pairs are roots.
+static bool _sm83_reg_layout(SM83OperandType id, SM83OperandType* root,
+                             RDRegMask* mask) {
+    static const RDRegMask FULL = {.mask = RD_REGMASK_FULL, .shift = 0};
+    static const RDRegMask HIGH = {.mask = 0xFF00, .shift = 8};
+    static const RDRegMask LOW = {.mask = 0x00FF, .shift = 0};
+
+    *root = id;
+    *mask = FULL;
+
+    // clang-format off
+    switch(id) {
+        case SM83_OP_AF:
+        case SM83_OP_BC:
+        case SM83_OP_DE:
+        case SM83_OP_HL:
+        case SM83_OP_SP: return true;
+
+        case SM83_OP_A: *root = SM83_OP_AF; *mask = HIGH; return true;
+        case SM83_OP_B: *root = SM83_OP_BC; *mask = HIGH; return true;
+        case SM83_OP_C: *root = SM83_OP_BC; *mask = LOW; return true;
+        case SM83_OP_D: *root = SM83_OP_DE; *mask = HIGH; return true;
+        case SM83_OP_E: *root = SM83_OP_DE; *mask = LOW; return true;
+        case SM83_OP_H: *root = SM83_OP_HL; *mask = HIGH; return true;
+        case SM83_OP_L: *root = SM83_OP_HL; *mask = LOW; return true;
+        default: break; // not a register ([hl] as an operand)
+    }
+    // clang-format on
+
+    return false;
+}
+
 static const char* sm83_get_mnemonic(const RDInstruction* instr,
                                      RDProcessor* p) {
     RD_UNUSED(p);
@@ -256,11 +290,14 @@ static bool sm83_query_reg(RDQueryReg* q, RDProcessor* p) {
         return false;
     }
 
-    if(q->want & RD_QUERY_REG_WANT_MASK) {
-    }
+    SM83OperandType root;
+    RDRegMask mask;
+    if(!_sm83_reg_layout((SM83OperandType)q->id, &root, &mask)) return false;
 
-    if(q->want & RD_QUERY_REG_WANT_CANONICAL) {
-    }
+    if(q->want & RD_QUERY_REG_WANT_MASK) q->mask = mask;
+
+    if(q->want & RD_QUERY_REG_WANT_ROOT)
+        q->root_name = _sm83_get_reg_name(root);
 
     return true;
 }
@@ -304,6 +341,133 @@ static void sm83_decode(RDContext* ctx, RDInstruction* instr, RDProcessor* p) {
     _sm83_categorize(instr, sm83_instr);
 }
 
+static void _sm83_forget(RDContext* ctx, const RDOperand* op) {
+    if(op->kind == RD_OP_REG) rd_del_regval_id(ctx, op->reg);
+}
+
+static void _sm83_forget_all(RDContext* ctx) {
+    // after a call the callee may have changed anything
+    rd_del_regval_id(ctx, SM83_OP_AF);
+    rd_del_regval_id(ctx, SM83_OP_BC);
+    rd_del_regval_id(ctx, SM83_OP_DE);
+    rd_del_regval_id(ctx, SM83_OP_HL);
+}
+
+static void _sm83_track_regs(RDContext* ctx, const RDInstruction* instr) {
+    const RDOperand* dst = &instr->operands[0];
+    const RDOperand* src = &instr->operands[1];
+
+    switch(instr->id) {
+        case SM83_INSTR_LD: {
+            if((dst->kind == SM83_OP_KIND_IND_REG &&
+                dst->reg == SM83_OP_IND_HL) ||
+               (src->kind == SM83_OP_KIND_IND_REG &&
+                src->reg == SM83_OP_IND_HL))
+                rd_del_regval_id(ctx, SM83_OP_HL);
+
+            if(dst->kind != RD_OP_REG) break;
+
+            if(src->kind == RD_OP_CNST) {
+                rd_set_regval_id(ctx, dst->reg, src->cnst);
+            }
+            else if(src->kind == RD_OP_ADDR) {
+                rd_set_regval_id(ctx, dst->reg, src->addr);
+            }
+            else if(src->kind == RD_OP_REG) {
+                RDRegValue v;
+                if(rd_get_regval_id(ctx, src->reg, &v))
+                    rd_set_regval_id(ctx, dst->reg, v);
+                else
+                    rd_del_regval_id(ctx, dst->reg);
+            }
+            else {
+                rd_del_regval_id(ctx, dst->reg);
+            }
+
+            break;
+        }
+
+        case SM83_INSTR_LDH: _sm83_forget(ctx, dst); break;
+
+        case SM83_INSTR_XOR:
+            if(dst->kind == RD_OP_REG && src->kind == RD_OP_REG &&
+               dst->reg == src->reg) {
+                rd_set_regval_id(ctx, dst->reg, 0);
+                break;
+            }
+
+            _sm83_forget(ctx, dst);
+            break;
+
+        case SM83_INSTR_INC:
+        case SM83_INSTR_DEC:
+        case SM83_INSTR_ADD:
+        case SM83_INSTR_ADC:
+        case SM83_INSTR_SUB:
+        case SM83_INSTR_SBC:
+        case SM83_INSTR_AND:
+        case SM83_INSTR_OR:
+        case SM83_INSTR_SWAP:
+        case SM83_INSTR_RL:
+        case SM83_INSTR_RLC:
+        case SM83_INSTR_RR:
+        case SM83_INSTR_RRC:
+        case SM83_INSTR_SLA:
+        case SM83_INSTR_SRA:
+        case SM83_INSTR_SRL:
+        case SM83_INSTR_SET:
+        case SM83_INSTR_RES:
+        case SM83_INSTR_POP: _sm83_forget(ctx, dst); break;
+
+        // implicit 'a'
+        case SM83_INSTR_RLCA:
+        case SM83_INSTR_RLA:
+        case SM83_INSTR_RRCA:
+        case SM83_INSTR_RRA:
+        case SM83_INSTR_CPL:
+        case SM83_INSTR_DAA: rd_del_regval_id(ctx, SM83_OP_AF); break;
+
+        case SM83_INSTR_CALL:
+        case SM83_INSTR_RST: _sm83_forget_all(ctx); break;
+
+        default: break;
+    }
+}
+
+// Reports stores whose address is a plain bus address.
+// The value is attached when the source register is known, otherwise the write
+// is still reported.
+static void _sm83_report_writes(RDContext* ctx, const RDInstruction* instr) {
+    if(instr->id != SM83_INSTR_LD && instr->id != SM83_INSTR_LDH) return;
+
+    const RDOperand* dst = &instr->operands[0];
+    const RDOperand* src = &instr->operands[1];
+    if(src->kind != RD_OP_REG) return;
+
+    RDAddress addr;
+
+    if(dst->kind == RD_OP_MEM) {
+        addr = dst->mem;
+    }
+    else if(instr->id == SM83_INSTR_LDH && dst->kind == SM83_OP_KIND_IND_REG &&
+            dst->reg == SM83_OP_IND_C) {
+        RDRegValue c;
+        if(!rd_get_regval_id(ctx, SM83_OP_C, &c)) return; // address unknown
+        addr = 0xFF00 | (c & 0xFF);
+    }
+    else {
+        return; // [hl], [bc], [de]: address not tracked
+    }
+
+    u8 size = src->reg == SM83_OP_SP ? 2 : 1;
+    RDRegValue v;
+
+    if(rd_get_regval_id(ctx, src->reg, &v))
+        rd_bus_write(ctx, addr, size, v);
+    else
+        rd_bus_write_unknown(ctx, addr, size);
+}
+
 static void sm83_emulate(RDContext* ctx, const RDInstruction* instr,
                          RDProcessor* p) {
     RD_UNUSED(p);
@@ -314,6 +478,9 @@ static void sm83_emulate(RDContext* ctx, const RDInstruction* instr,
         rd_add_xref(ctx, instr->address, instr->operands[0].mem, RD_DR_WRITE);
     else
         _sm83_emulate_default(ctx, instr);
+
+    _sm83_report_writes(ctx, instr); // before tracking: sees the old values
+    _sm83_track_regs(ctx, instr);
 
     if(rd_instr_can_flow(instr)) rd_flow(ctx, instr->address + instr->length);
 }

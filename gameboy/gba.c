@@ -180,7 +180,7 @@ static const char* gba_get_name(const RDLoader* ldr) {
     return "GameBoy Advance ROM";
 }
 
-const RDLoaderPlugin GBA = {
+const RDLoaderPlugin GBA_LOADER = {
     .id = "gameboy_gba",
     .instance_size = sizeof(GBACartridge),
     .parse = gba_parse,
