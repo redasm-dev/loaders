@@ -35,7 +35,7 @@ static void _gb_bus_write(RDContext* ctx, const RDHookEvent* e,
     // value unknown: can't tell which interrupts are enabled
     if(!e->bus.has_value) return;
 
-    u64 ie = e->bus.value;
+    RDRegValue ie = e->bus.value;
 
     for(usize i = 0; i < rd_count_of(GB_INTERRUPTS); i++) {
         if(ie & (1U << GB_INTERRUPTS[i].bit))
