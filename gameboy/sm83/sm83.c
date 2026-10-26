@@ -1,36 +1,39 @@
 #include "sm83.h"
 #include "sm83/tables.h"
-#include <string.h>
 
+// id, name, root, bits, shift
 #define SM83_REGISTERS(X)                                                      \
-    X(SM83_OP_AF, "af")                                                        \
-    X(SM83_OP_BC, "bc")                                                        \
-    X(SM83_OP_DE, "de")                                                        \
-    X(SM83_OP_HL, "hl")                                                        \
-    X(SM83_OP_SP, "sp")                                                        \
-    X(SM83_OP_A, "a")                                                          \
-    X(SM83_OP_B, "b")                                                          \
-    X(SM83_OP_C, "c")                                                          \
-    X(SM83_OP_D, "d")                                                          \
-    X(SM83_OP_E, "e")                                                          \
-    X(SM83_OP_L, "l")                                                          \
-    X(SM83_OP_H, "h")
+    X(SM83_OP_AF, "af", RD_REGID_INVALID, 16, 0)                               \
+    X(SM83_OP_BC, "bc", RD_REGID_INVALID, 16, 0)                               \
+    X(SM83_OP_DE, "de", RD_REGID_INVALID, 16, 0)                               \
+    X(SM83_OP_HL, "hl", RD_REGID_INVALID, 16, 0)                               \
+    X(SM83_OP_SP, "sp", RD_REGID_INVALID, 16, 0)                               \
+    X(SM83_OP_A, "a", SM83_OP_AF, 8, 8)                                        \
+    X(SM83_OP_B, "b", SM83_OP_BC, 8, 8)                                        \
+    X(SM83_OP_C, "c", SM83_OP_BC, 8, 0)                                        \
+    X(SM83_OP_D, "d", SM83_OP_DE, 8, 8)                                        \
+    X(SM83_OP_E, "e", SM83_OP_DE, 8, 0)                                        \
+    X(SM83_OP_H, "h", SM83_OP_HL, 8, 8)                                        \
+    X(SM83_OP_L, "l", SM83_OP_HL, 8, 0)
 
-#define SM83_REG_NAME2ID_X(id, reg_name)                                       \
-    if(!strcmp(name, reg_name)) return id;
+#define SM83_REG_DEF_X(id, reg_name, reg_root, reg_bits, reg_shift)            \
+    {id, reg_name, reg_root, reg_bits, reg_shift},
 
-#define SM83_REG_ID2NAME_X(id, reg_name)                                       \
-    case id: return reg_name;
-
-#define SM83_REG_CASE_X(id, reg_name)                                          \
+#define SM83_REG_CASE_X(id, reg_name, reg_root, reg_bits, reg_shift)           \
     case id:                                                                   \
         op->kind = RD_OP_REG;                                                  \
         op->reg = id;                                                          \
         break;
 
+// clang-format off
+static const RDRegisterDef SM83_REGS[] = {
+    SM83_REGISTERS(SM83_REG_DEF_X)
+    {0},
+};
+// clang-format on
+
 typedef enum {
     SM83_OP_KIND_COND = RD_OP_USERBASE,
-    SM83_OP_KIND_IND_REG, // [reg]
     SM83_OP_KIND_SYS,
 } SM83Operands;
 
@@ -39,44 +42,14 @@ static inline RDAddress _sm83_pc(const RDInstruction* instr,
     return instr->address + *cursor;
 }
 
-static const char* _sm83_get_reg_name(SM83OperandType op) {
-    switch(op) {
-        SM83_REGISTERS(SM83_REG_ID2NAME_X)
-        default: break;
-    }
-
-    return NULL;
-}
-
-static SM83OperandType _sm83_get_reg_id(const char* name) {
-    if(!name) return SM83_OP_NONE;
-    SM83_REGISTERS(SM83_REG_NAME2ID_X)
-    return SM83_OP_NONE;
-}
-
-static void _sm83_emulate_default(RDContext* ctx, const RDInstruction* instr) {
-    rd_foreach_operand(i, op, instr) {
-        if(op->kind == RD_OP_MEM) {
-            // only stores (ld [nn], r / ldh [n], a) have it as destination
-            rd_add_xref(ctx, instr->address, op->mem,
-                        i == 0 ? RD_DR_WRITE : RD_DR_READ);
-            continue;
-        }
-
-        if(op->kind != RD_OP_ADDR) continue;
-
-        if(rd_instr_is_jump(instr))
-            rd_add_xref(ctx, instr->address, op->addr, RD_CR_JUMP);
-        else if(rd_instr_is_call(instr))
-            rd_add_xref(ctx, instr->address, op->addr, RD_CR_CALL);
-        else
-            rd_add_xref(ctx, instr->address, op->addr, RD_DR_ADDRESS);
-    }
-}
-
 static void _sm83_ind_reg(RDOperand* op, SM83OperandType reg, i32 step) {
-    op->kind = SM83_OP_KIND_IND_REG;
-    op->reg = reg;
+    op->kind = RD_OP_DISPL;
+    op->displ.base = reg;
+    op->displ.index = RD_REGID_INVALID;
+    op->displ.offset = 0;
+    op->displ.scale = 0;
+
+    // post-step of 'base' ([hli] / [hld]): sm83 private, like arm's post_index
     op->userdata1 = (u32)step;
 }
 
@@ -241,37 +214,6 @@ static void _sm83_categorize(RDInstruction* instr,
 // 8-bit halves live inside their 16-bit pair, so a write to 'h' or a read of
 // 'bc' stay coherent in the regval map.
 // 'sp' and the pairs are roots.
-static bool _sm83_reg_layout(SM83OperandType id, SM83OperandType* root,
-                             RDRegMask* mask) {
-    static const RDRegMask FULL = {.mask = RD_REGMASK_FULL, .shift = 0};
-    static const RDRegMask HIGH = {.mask = 0xFF00, .shift = 8};
-    static const RDRegMask LOW = {.mask = 0x00FF, .shift = 0};
-
-    *root = id;
-    *mask = FULL;
-
-    // clang-format off
-    switch(id) {
-        case SM83_OP_AF:
-        case SM83_OP_BC:
-        case SM83_OP_DE:
-        case SM83_OP_HL:
-        case SM83_OP_SP: return true;
-
-        case SM83_OP_A: *root = SM83_OP_AF; *mask = HIGH; return true;
-        case SM83_OP_B: *root = SM83_OP_BC; *mask = HIGH; return true;
-        case SM83_OP_C: *root = SM83_OP_BC; *mask = LOW; return true;
-        case SM83_OP_D: *root = SM83_OP_DE; *mask = HIGH; return true;
-        case SM83_OP_E: *root = SM83_OP_DE; *mask = LOW; return true;
-        case SM83_OP_H: *root = SM83_OP_HL; *mask = HIGH; return true;
-        case SM83_OP_L: *root = SM83_OP_HL; *mask = LOW; return true;
-        default: break; // not a register ([hl] as an operand)
-    }
-    // clang-format on
-
-    return false;
-}
-
 static const char* sm83_get_mnemonic(const RDInstruction* instr,
                                      RDProcessor* p) {
     RD_UNUSED(p);
@@ -280,33 +222,7 @@ static const char* sm83_get_mnemonic(const RDInstruction* instr,
 
 static bool sm83_query_reg(RDQueryReg* q, RDProcessor* p) {
     RD_UNUSED(p);
-
-    if(q->kind == RD_QUERY_REG_BY_ID) {
-        q->name = _sm83_get_reg_name(q->id);
-        if(!q->name) return false;
-    }
-
-    else if(q->kind == RD_QUERY_REG_BY_NAME) {
-        q->id = _sm83_get_reg_id(q->name);
-        if(q->id == SM83_OP_NONE) return false;
-    }
-    else {
-        return false;
-    }
-
-    if(!(q->want & (RD_QUERY_REG_WANT_MASK | RD_QUERY_REG_WANT_ROOT)))
-        return true;
-
-    SM83OperandType root;
-    RDRegMask mask;
-    if(!_sm83_reg_layout((SM83OperandType)q->id, &root, &mask)) return false;
-
-    if(q->want & RD_QUERY_REG_WANT_MASK) q->mask = mask;
-
-    if(q->want & RD_QUERY_REG_WANT_ROOT)
-        q->root_name = _sm83_get_reg_name(root);
-
-    return true;
+    return rd_query_reg_table(q, SM83_REGS);
 }
 
 static void sm83_decode(RDContext* ctx, RDInstruction* instr, RDProcessor* p) {
@@ -348,26 +264,6 @@ static void sm83_decode(RDContext* ctx, RDInstruction* instr, RDProcessor* p) {
     _sm83_categorize(instr, sm83_instr);
 }
 
-static bool _sm83_is_rmw(u32 id) {
-    switch(id) {
-        case SM83_INSTR_INC:
-        case SM83_INSTR_DEC:
-        case SM83_INSTR_SWAP:
-        case SM83_INSTR_RL:
-        case SM83_INSTR_RLC:
-        case SM83_INSTR_RR:
-        case SM83_INSTR_RRC:
-        case SM83_INSTR_SLA:
-        case SM83_INSTR_SRA:
-        case SM83_INSTR_SRL:
-        case SM83_INSTR_SET:
-        case SM83_INSTR_RES: return true;
-        default: break;
-    }
-
-    return false;
-}
-
 static bool _sm83_is_pair(RDReg reg) {
     return reg == SM83_OP_BC || reg == SM83_OP_DE || reg == SM83_OP_HL;
 }
@@ -386,90 +282,24 @@ static RDReg _sm83_pair_of(RDReg reg) {
     return reg;
 }
 
-// 'info' describes a register that is being used as an address: if it was
-// loaded by 'ld <reg>, nn' (the setter is checked, it may be stale or a
-// partial write), that immediate is an address
-static void _sm83_mark_pointer(RDContext* ctx, RDReg reg,
-                               const RDRegValueInfo* info) {
-    RDInstruction ld;
-    if(!rd_decode(ctx, info->setter, &ld)) return;
-    if(ld.id != SM83_INSTR_LD) return;
-    if(ld.operands[0].kind != RD_OP_REG || ld.operands[0].reg != reg) return;
-    if(ld.operands[1].kind != RD_OP_IMM || ld.operands[1].imm != info->value)
-        return;
-
-    rd_add_xref(ctx, info->setter, (RDAddress)info->value, RD_DR_ADDRESS);
-}
-
-// Address used by a [reg] operand, when known.
-// 'pointer' is set when the address comes from a 16-bit register loaded by 'ld
-// rr, nn'.
+// Address used by a [reg] operand, when the register's value is known
 static bool _sm83_ind_address(RDContext* ctx, const RDOperand* op,
-                              RDAddress* addr, RDRegValueInfo* info) {
-    if(op->kind != SM83_OP_KIND_IND_REG) return false;
+                              RDAddress* addr) {
+    if(op->kind != RD_OP_DISPL) return false;
 
-    if(op->reg == SM83_OP_C) { // ldh [c]: $FF00 + c
-        if(!rd_get_regval_info_id(ctx, SM83_OP_C, info)) return false;
-        *addr = 0xFF00 | (info->value & 0xFF);
+    RDRegValue v;
+
+    if(op->displ.base == SM83_OP_C) { // ldh [c]: $FF00 + c
+        if(!rd_get_regval_id(ctx, SM83_OP_C, &v)) return false;
+        *addr = 0xFF00 | (v & 0xFF);
         return true;
     }
 
-    if(!_sm83_is_pair(op->reg)) return false;
-    if(!rd_get_regval_info_id(ctx, op->reg, info)) return false;
+    if(!_sm83_is_pair(op->displ.base)) return false;
+    if(!rd_get_regval_id(ctx, op->displ.base, &v)) return false;
 
-    *addr = (RDAddress)(info->value & 0xFFFF);
+    *addr = (RDAddress)(v & 0xFFFF);
     return true;
-}
-
-// Accesses through a register with a known value are accesses to an address
-static void _sm83_deref(RDContext* ctx, const RDInstruction* instr) {
-    bool rmw = _sm83_is_rmw(instr->id);
-    bool store = instr->id == SM83_INSTR_LD || instr->id == SM83_INSTR_LDH;
-
-    rd_foreach_operand(i, op, instr) {
-        RDAddress addr;
-        RDRegValueInfo info;
-        if(!_sm83_ind_address(ctx, op, &addr, &info)) continue;
-        if(!rd_is_address(ctx, addr)) continue;
-
-        if(i == 0 && (store || rmw))
-            rd_add_xref(ctx, instr->address, addr, RD_DR_WRITE);
-
-        if(i > 0 || rmw) rd_add_xref(ctx, instr->address, addr, RD_DR_READ);
-
-        if(_sm83_is_pair(op->reg)) _sm83_mark_pointer(ctx, op->reg, &info);
-    }
-
-    // jp hl
-    if(instr->id == SM83_INSTR_JP && instr->operands[0].kind == RD_OP_REG &&
-       instr->operands[0].reg == SM83_OP_HL) {
-        RDRegValueInfo info;
-
-        if(rd_get_regval_info_id(ctx, SM83_OP_HL, &info) &&
-           rd_is_address(ctx, (RDAddress)info.value)) {
-            rd_add_xref(ctx, instr->address, (RDAddress)info.value, RD_CR_JUMP);
-            _sm83_mark_pointer(ctx, SM83_OP_HL, &info);
-        }
-    }
-}
-
-// 'add a, l' with hl loaded by 'ld hl, nn': hl is the base of a table
-static void _sm83_base_index(RDContext* ctx, const RDInstruction* instr) {
-    if(instr->id != SM83_INSTR_ADD) return;
-
-    const RDOperand* dst = &instr->operands[0];
-    const RDOperand* src = &instr->operands[1];
-    if(dst->kind != RD_OP_REG || dst->reg != SM83_OP_A) return;
-    if(src->kind != RD_OP_REG) return;
-
-    RDReg pair = _sm83_pair_of(src->reg);
-    if(pair == src->reg || !_sm83_is_pair(pair)) return; // not a half
-
-    RDRegValueInfo info;
-    if(!rd_get_regval_info_id(ctx, pair, &info)) return;
-    if(!rd_is_address(ctx, (RDAddress)info.value)) return;
-
-    _sm83_mark_pointer(ctx, pair, &info);
 }
 
 static void _sm83_forget(RDContext* ctx, const RDOperand* op) {
@@ -486,9 +316,9 @@ static void _sm83_forget_all(RDContext* ctx) {
 
 // [hli] / [hld] move hl after the access
 static void _sm83_step_hl(RDContext* ctx, const RDOperand* op) {
-    if(op->kind != SM83_OP_KIND_IND_REG || op->reg != SM83_OP_HL) return;
+    if(op->kind != RD_OP_DISPL || op->displ.base != SM83_OP_HL) return;
 
-    i32 step = op->userdata1;
+    i32 step = (i32)op->userdata1;
     if(!step) return;
 
     RDRegValue hl;
@@ -497,57 +327,181 @@ static void _sm83_step_hl(RDContext* ctx, const RDOperand* op) {
     rd_set_regval_id(ctx, SM83_OP_HL, (hl + (RDRegValue)(i64)step) & 0xFFFF);
 }
 
-static void _sm83_track_regs(RDContext* ctx, const RDInstruction* instr) {
+// The value a store writes, when it is known
+static bool _sm83_stored_value(RDContext* ctx, const RDOperand* src,
+                               RDRegValue* value, u8* size) {
+    *size = 1;
+
+    if(src->kind == RD_OP_CNST) {
+        *value = src->cnst;
+        return true;
+    }
+
+    if(src->kind != RD_OP_REG) return false;
+
+    if(src->reg == SM83_OP_SP) *size = 2;
+    return rd_get_regval_id(ctx, src->reg, value);
+}
+
+// Every memory access the instruction performs, and what it implies: the
+// data xrefs, the pointer proof, and the bus write for a store. Registers
+// are read as they were before the instruction, so this runs before any
+// value is updated.
+static void _sm83_access(RDContext* ctx, const RDInstruction* instr, bool store,
+                         bool rmw) {
+    rd_foreach_operand(i, op, instr) {
+        RDAddress addr;
+        bool has_addr = false;
+
+        if(op->kind == RD_OP_MEM) { // ld [nn], a / ldh [n], a
+            addr = op->mem;
+            has_addr = true;
+
+            rd_add_xref(ctx, instr->address, addr,
+                        i == 0 ? RD_DR_WRITE : RD_DR_READ);
+        }
+        else if(_sm83_ind_address(ctx, op, &addr)) {
+            has_addr = true;
+
+            // an access through a register is only reported as a reference
+            // when the register holds something addressable
+            if(rd_is_address(ctx, addr)) {
+                if(i == 0 && (store || rmw))
+                    rd_add_xref(ctx, instr->address, addr, RD_DR_WRITE);
+
+                if(i > 0 || rmw)
+                    rd_add_xref(ctx, instr->address, addr, RD_DR_READ);
+
+                if(_sm83_is_pair(op->displ.base))
+                    rd_mark_regval_address(ctx, op->displ.base);
+            }
+        }
+
+        // the bus sees every store, addressable or not ($FFFF is not memory)
+        if(i != 0 || !has_addr || (!store && !rmw)) continue;
+
+        RDRegValue value;
+        u8 size = 1;
+
+        // a read-modify-write does not compute the new value, and a store
+        // from an unknown register still reports the write
+        if(!rmw && _sm83_stored_value(ctx, &instr->operands[1], &value, &size))
+            rd_bus_write(ctx, addr, size, value);
+        else
+            rd_bus_write_unknown(ctx, addr, size);
+    }
+}
+
+static void _sm83_emu_ld(RDContext* ctx, const RDInstruction* instr) {
     const RDOperand* dst = &instr->operands[0];
     const RDOperand* src = &instr->operands[1];
 
-    switch(instr->id) {
-        case SM83_INSTR_LD: {
-            _sm83_step_hl(ctx, dst);
-            _sm83_step_hl(ctx, src);
+    _sm83_access(ctx, instr, true, false);
 
-            if(dst->kind != RD_OP_REG) break;
+    _sm83_step_hl(ctx, dst);
+    _sm83_step_hl(ctx, src);
 
-            if(src->kind == RD_OP_CNST) {
-                rd_set_regval_id(ctx, dst->reg, src->cnst);
-            }
-            else if(src->kind == RD_OP_IMM) {
-                rd_set_regval_id(ctx, dst->reg, src->imm);
-            }
-            else if(src->kind == RD_OP_REG) {
-                RDRegValue v;
-                if(rd_get_regval_id(ctx, src->reg, &v))
-                    rd_set_regval_id(ctx, dst->reg, v);
-                else
-                    rd_del_regval_id(ctx, dst->reg);
-            }
-            else {
+    if(dst->kind != RD_OP_REG) return;
+
+    switch(src->kind) {
+        case RD_OP_CNST: rd_set_regval_id(ctx, dst->reg, src->cnst); break;
+        case RD_OP_IMM: rd_set_regval_id(ctx, dst->reg, src->imm); break;
+
+        case RD_OP_REG: {
+            RDRegValue v;
+
+            if(rd_get_regval_id(ctx, src->reg, &v))
+                rd_set_regval_id(ctx, dst->reg, v);
+            else
                 rd_del_regval_id(ctx, dst->reg);
-            }
 
             break;
         }
 
-        case SM83_INSTR_LDH: _sm83_forget(ctx, dst); break;
+        // memory-sourced (ld a, [hl] / ldh a, [n]): unknown statically
+        default: rd_del_regval_id(ctx, dst->reg); break;
+    }
+}
 
-        case SM83_INSTR_XOR:
-            if(dst->kind == RD_OP_REG && src->kind == RD_OP_REG &&
-               dst->reg == src->reg) {
-                rd_set_regval_id(ctx, dst->reg, 0);
-                break;
-            }
+static void _sm83_emu_branch(RDContext* ctx, const RDInstruction* instr) {
+    RDXRefType type = rd_instr_is_call(instr) ? RD_CR_CALL : RD_CR_JUMP;
 
-            _sm83_forget(ctx, dst);
-            break;
+    rd_foreach_operand(i, op, instr) {
+        if(op->kind == RD_OP_ADDR) // jp nn / jr e8 / call nn
+            rd_add_xref(ctx, instr->address, op->addr, type);
+    }
+
+    // jp hl: the target is wherever hl points
+    if(instr->operands[0].kind == RD_OP_REG &&
+       instr->operands[0].reg == SM83_OP_HL) {
+        RDRegValue hl;
+
+        if(rd_get_regval_id(ctx, SM83_OP_HL, &hl) &&
+           rd_is_address(ctx, (RDAddress)hl)) {
+            rd_add_xref(ctx, instr->address, (RDAddress)hl, type);
+            rd_mark_regval_address(ctx, SM83_OP_HL);
+        }
+    }
+
+    if(rd_instr_is_call(instr)) _sm83_forget_all(ctx);
+}
+
+// 'add a, l' with hl loaded by 'ld hl, nn': hl is the base of a table
+static void _sm83_base_index(RDContext* ctx, const RDInstruction* instr) {
+    const RDOperand* dst = &instr->operands[0];
+    const RDOperand* src = &instr->operands[1];
+    if(dst->kind != RD_OP_REG || dst->reg != SM83_OP_A) return;
+    if(src->kind != RD_OP_REG) return;
+
+    RDReg pair = _sm83_pair_of(src->reg);
+    if(pair == src->reg || !_sm83_is_pair(pair)) return; // not a half
+
+    rd_mark_regval_address(ctx, pair);
+}
+
+typedef enum {
+    SM83_ALU_WRITE, // dst gets a value we don't compute (add, or, pop, ...)
+    SM83_ALU_RMW,   // dst is read and written in place (inc, rl, set, ...)
+    SM83_ALU_READ,  // dst is only read (cp, bit)
+} SM83AluKind;
+
+static void _sm83_emu_alu(RDContext* ctx, const RDInstruction* instr,
+                          SM83AluKind kind) {
+    const RDOperand* dst = &instr->operands[0];
+    const RDOperand* src = &instr->operands[1];
+
+    _sm83_access(ctx, instr, false, kind == SM83_ALU_RMW);
+
+    if(instr->id == SM83_INSTR_ADD) _sm83_base_index(ctx, instr);
+
+    if(kind == SM83_ALU_READ) return;
+
+    // 'xor a, a' is zero whatever a was
+    if(instr->id == SM83_INSTR_XOR && dst->kind == RD_OP_REG &&
+       src->kind == RD_OP_REG && dst->reg == src->reg) {
+        rd_set_regval_id(ctx, dst->reg, 0);
+        return;
+    }
+
+    _sm83_forget(ctx, dst);
+}
+
+static void sm83_emulate(RDContext* ctx, const RDInstruction* instr,
+                         RDProcessor* p) {
+    RD_UNUSED(p);
+
+    // clang-format off
+    switch(instr->id) {
+        case SM83_INSTR_LD:
+        case SM83_INSTR_LDH: _sm83_emu_ld(ctx, instr); break;
+
+        case SM83_INSTR_JP:
+        case SM83_INSTR_JR:
+        case SM83_INSTR_CALL:
+        case SM83_INSTR_RST: _sm83_emu_branch(ctx, instr); break;
 
         case SM83_INSTR_INC:
         case SM83_INSTR_DEC:
-        case SM83_INSTR_ADD:
-        case SM83_INSTR_ADC:
-        case SM83_INSTR_SUB:
-        case SM83_INSTR_SBC:
-        case SM83_INSTR_AND:
-        case SM83_INSTR_OR:
         case SM83_INSTR_SWAP:
         case SM83_INSTR_RL:
         case SM83_INSTR_RLC:
@@ -557,8 +511,19 @@ static void _sm83_track_regs(RDContext* ctx, const RDInstruction* instr) {
         case SM83_INSTR_SRA:
         case SM83_INSTR_SRL:
         case SM83_INSTR_SET:
-        case SM83_INSTR_RES:
-        case SM83_INSTR_POP: _sm83_forget(ctx, dst); break;
+        case SM83_INSTR_RES: _sm83_emu_alu(ctx, instr, SM83_ALU_RMW); break;
+
+        case SM83_INSTR_ADD:
+        case SM83_INSTR_ADC:
+        case SM83_INSTR_SUB:
+        case SM83_INSTR_SBC:
+        case SM83_INSTR_AND:
+        case SM83_INSTR_OR:
+        case SM83_INSTR_XOR:
+        case SM83_INSTR_POP: _sm83_emu_alu(ctx, instr, SM83_ALU_WRITE); break;
+
+        case SM83_INSTR_CP:
+        case SM83_INSTR_BIT: _sm83_emu_alu(ctx, instr, SM83_ALU_READ); break;
 
         // implicit 'a'
         case SM83_INSTR_RLCA:
@@ -568,68 +533,9 @@ static void _sm83_track_regs(RDContext* ctx, const RDInstruction* instr) {
         case SM83_INSTR_CPL:
         case SM83_INSTR_DAA: rd_del_regval_id(ctx, SM83_OP_AF); break;
 
-        case SM83_INSTR_CALL:
-        case SM83_INSTR_RST: _sm83_forget_all(ctx); break;
-
-        default: break;
+        default: break; // nop, push, ret, ei, di, halt, scf, ccf, ...
     }
-}
-
-// Reports stores whose address is known: a plain bus address or a pointer
-// register with a known value. The value is attached when it is known,
-// otherwise the write is still reported.
-static void _sm83_report_writes(RDContext* ctx, const RDInstruction* instr) {
-    bool store = instr->id == SM83_INSTR_LD || instr->id == SM83_INSTR_LDH;
-    if(!store && !_sm83_is_rmw(instr->id)) return;
-
-    const RDOperand* dst = &instr->operands[0];
-    const RDOperand* src = &instr->operands[1];
-
-    RDAddress addr;
-
-    if(dst->kind == RD_OP_MEM) {
-        addr = dst->mem;
-    }
-    else {
-        RDRegValueInfo info;
-        if(!_sm83_ind_address(ctx, dst, &addr, &info)) return;
-    }
-
-    if(!store) { // read-modify-write: the new value is not computed
-        rd_bus_write_unknown(ctx, addr, 1);
-        return;
-    }
-
-    if(src->kind == RD_OP_CNST) {
-        rd_bus_write(ctx, addr, 1, src->cnst);
-        return;
-    }
-
-    if(src->kind != RD_OP_REG) {
-        rd_bus_write_unknown(ctx, addr, 1);
-        return;
-    }
-
-    u8 size = src->reg == SM83_OP_SP ? 2 : 1;
-    RDRegValue v;
-
-    if(rd_get_regval_id(ctx, src->reg, &v))
-        rd_bus_write(ctx, addr, size, v);
-    else
-        rd_bus_write_unknown(ctx, addr, size);
-}
-
-static void sm83_emulate(RDContext* ctx, const RDInstruction* instr,
-                         RDProcessor* p) {
-    RD_UNUSED(p);
-
-    _sm83_emulate_default(ctx, instr);
-
-    // all of these see the registers as they were before the instruction
-    _sm83_deref(ctx, instr);
-    _sm83_base_index(ctx, instr);
-    _sm83_report_writes(ctx, instr);
-    _sm83_track_regs(ctx, instr);
+    // clang-format on
 
     if(rd_instr_can_flow(instr)) rd_flow(ctx, instr->address + instr->length);
 }
@@ -660,12 +566,12 @@ static bool sm83_render_operand(RDRenderer* r, const RDInstruction* instr,
         return true;
     }
 
-    if(op->kind == SM83_OP_KIND_IND_REG) {
+    if(op->kind == RD_OP_DISPL) {
         rd_renderer_norm(r, "[");
-        rd_renderer_reg(r, op->reg);
+        rd_renderer_reg(r, op->displ.base);
 
         // use RGBDS spelling: hli / hld
-        i32 step = op->userdata1;
+        i32 step = (i32)op->userdata1;
         if(step > 0)
             rd_renderer_text(r, "i", RD_THEME_REG, RD_THEME_DEFAULT);
         else if(step < 0)
