@@ -14,6 +14,7 @@ target_sources(${PROJECT_NAME}
         sm83/tables.c
         gb/loader.c
         gb/platform.c
+        gb/sym.c
         gba.c
         module.c
 )
