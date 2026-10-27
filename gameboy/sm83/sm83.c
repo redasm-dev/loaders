@@ -330,7 +330,7 @@ static void _sm83_step_hl(RDContext* ctx, const RDOperand* op) {
 // The value a store writes, when it is known
 static bool _sm83_stored_value(RDContext* ctx, const RDOperand* src,
                                RDRegValue* value, u8* size) {
-    *size = 1;
+    *size = sizeof(u8);
 
     if(src->kind == RD_OP_CNST) {
         *value = src->cnst;
@@ -339,14 +339,14 @@ static bool _sm83_stored_value(RDContext* ctx, const RDOperand* src,
 
     if(src->kind != RD_OP_REG) return false;
 
-    if(src->reg == SM83_OP_SP) *size = 2;
+    if(src->reg == SM83_OP_SP) *size = sizeof(u16);
     return rd_get_regval_id(ctx, src->reg, value);
 }
 
 // Every memory access the instruction performs, and what it implies: the
-// data xrefs, the pointer proof, and the bus write for a store. Registers
-// are read as they were before the instruction, so this runs before any
-// value is updated.
+// data xrefs, the pointer proof, and the bus write for a store.
+// Registers are read as they were before the instruction, so this runs before
+// any value is updated.
 static void _sm83_access(RDContext* ctx, const RDInstruction* instr, bool store,
                          bool rmw) {
     rd_foreach_operand(i, op, instr) {
@@ -381,7 +381,7 @@ static void _sm83_access(RDContext* ctx, const RDInstruction* instr, bool store,
         if(i != 0 || !has_addr || (!store && !rmw)) continue;
 
         RDRegValue value;
-        u8 size = 1;
+        u8 size = sizeof(u8);
 
         // a read-modify-write does not compute the new value, and a store
         // from an unknown register still reports the write
@@ -427,8 +427,11 @@ static void _sm83_emu_branch(RDContext* ctx, const RDInstruction* instr) {
     RDXRefType type = rd_instr_is_call(instr) ? RD_CR_CALL : RD_CR_JUMP;
 
     rd_foreach_operand(i, op, instr) {
-        if(op->kind == RD_OP_ADDR) // jp nn / jr e8 / call nn
-            rd_add_xref(ctx, instr->address, op->addr, type);
+        if(op->kind != RD_OP_ADDR) continue;
+
+        // jp nn / jr e8 / call nn
+        rd_add_xref(ctx, instr->address, op->addr, type);
+        break;
     }
 
     // jp hl: the target is wherever hl points
