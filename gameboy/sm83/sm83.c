@@ -357,8 +357,8 @@ static void _sm83_access(RDContext* ctx, const RDInstruction* instr, bool store,
             addr = op->mem;
             has_addr = true;
 
-            rd_add_xref(ctx, instr->address, addr,
-                        i == 0 ? RD_DR_WRITE : RD_DR_READ);
+            rd_auto_xref_add(ctx, instr->address, addr,
+                             i == 0 ? RD_DR_WRITE : RD_DR_READ);
         }
         else if(_sm83_ind_address(ctx, op, &addr)) {
             has_addr = true;
@@ -367,10 +367,10 @@ static void _sm83_access(RDContext* ctx, const RDInstruction* instr, bool store,
             // when the register holds something addressable
             if(rd_is_address(ctx, addr)) {
                 if(i == 0 && (store || rmw))
-                    rd_add_xref(ctx, instr->address, addr, RD_DR_WRITE);
+                    rd_auto_xref_add(ctx, instr->address, addr, RD_DR_WRITE);
 
                 if(i > 0 || rmw)
-                    rd_add_xref(ctx, instr->address, addr, RD_DR_READ);
+                    rd_auto_xref_add(ctx, instr->address, addr, RD_DR_READ);
 
                 if(_sm83_is_pair(op->displ.base))
                     rd_mark_regval_address(ctx, op->displ.base);
@@ -430,7 +430,7 @@ static void _sm83_emu_branch(RDContext* ctx, const RDInstruction* instr) {
         if(op->kind != RD_OP_ADDR) continue;
 
         // jp nn / jr e8 / call nn
-        rd_add_xref(ctx, instr->address, op->addr, type);
+        rd_auto_xref_add(ctx, instr->address, op->addr, type);
         break;
     }
 
@@ -441,7 +441,7 @@ static void _sm83_emu_branch(RDContext* ctx, const RDInstruction* instr) {
 
         if(rd_get_regval_id(ctx, SM83_OP_HL, &hl) &&
            rd_is_address(ctx, (RDAddress)hl)) {
-            rd_add_xref(ctx, instr->address, (RDAddress)hl, type);
+            rd_auto_xref_add(ctx, instr->address, (RDAddress)hl, type);
             rd_mark_regval_address(ctx, SM83_OP_HL);
         }
     }

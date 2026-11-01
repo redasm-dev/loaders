@@ -74,7 +74,7 @@ static void _dalvik_switch_payload(RDContext* ctx, const RDInstruction* instr,
         if(!rd_read_le32(ctx, targets + ((u64)i * sizeof(u32)), &off)) break;
 
         RDAddress dest = instr->address + ((i64)(i32)off * 2);
-        rd_add_xref(ctx, instr->address, dest, RD_CR_JUMP);
+        rd_auto_xref_add(ctx, instr->address, dest, RD_CR_JUMP);
         rd_flow(ctx, dest); // nothing else reaches a case target
     }
 }
@@ -240,13 +240,13 @@ static void dalvik_emulate(RDContext* ctx, const RDInstruction* instr,
 
     if(instr->id == DALVIK_ID_PACKED_SWITCH ||
        instr->id == DALVIK_ID_SPARSE_SWITCH) {
-        rd_add_xref(ctx, instr->address, instr->operands[1].addr,
-                    RD_DR_ADDRESS);
+        rd_auto_xref_add(ctx, instr->address, instr->operands[1].addr,
+                         RD_DR_ADDRESS);
         _dalvik_switch_payload(ctx, instr, instr->operands[1].addr);
     }
     else if(instr->id == DALVIK_ID_FILL_ARRAY_DATA) {
-        rd_add_xref(ctx, instr->address, instr->operands[1].addr,
-                    RD_DR_ADDRESS);
+        rd_auto_xref_add(ctx, instr->address, instr->operands[1].addr,
+                         RD_DR_ADDRESS);
         _dalvik_fill_array_data(ctx, instr->operands[1].addr);
     }
     else {
@@ -254,11 +254,11 @@ static void dalvik_emulate(RDContext* ctx, const RDInstruction* instr,
             if(op->kind != RD_OP_ADDR) continue;
 
             if(rd_instr_is_call(instr))
-                rd_add_xref(ctx, instr->address, op->addr, RD_CR_CALL);
+                rd_auto_xref_add(ctx, instr->address, op->addr, RD_CR_CALL);
             else if(rd_instr_is_jump(instr))
-                rd_add_xref(ctx, instr->address, op->addr, RD_CR_JUMP);
+                rd_auto_xref_add(ctx, instr->address, op->addr, RD_CR_JUMP);
             else
-                rd_add_xref(ctx, instr->address, op->addr, RD_DR_ADDRESS);
+                rd_auto_xref_add(ctx, instr->address, op->addr, RD_DR_ADDRESS);
         }
     }
 

@@ -32,7 +32,7 @@ static void _dex_xref_call_sites(RDContext* ctx, RDReader* r,
         rd_reader_restore(r);
 
         if(!ok || dataoff >= dex->header.file_size) continue;
-        rd_add_xref(ctx, (RDAddress)addr, dataoff, RD_DR_ADDRESS);
+        rd_auto_xref_add(ctx, (RDAddress)addr, dataoff, RD_DR_ADDRESS);
     }
 }
 

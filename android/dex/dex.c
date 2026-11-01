@@ -41,8 +41,9 @@ static void _dex_name_strings(RDContext* ctx, RDReader* r, DEXFormat* dex) {
         rd_library_type(ctx, text, "char", nbytes + 1, RD_TYPE_NONE);
 
         // the STR_IDS entry addresses the ITEM, not the text
-        rd_add_xref(ctx, hdr->string_ids_off + ((u64)i * DEX_STRING_ID_SIZE),
-                    dataoff, RD_DR_ADDRESS);
+        rd_auto_xref_add(ctx,
+                         hdr->string_ids_off + ((u64)i * DEX_STRING_ID_SIZE),
+                         dataoff, RD_DR_ADDRESS);
     }
 }
 

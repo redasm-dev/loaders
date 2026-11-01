@@ -96,7 +96,7 @@ static void _dex_emit_handler_list(RDContext* ctx, RDReader* r, DEXFormat* dex,
          * instruction: any throw inside it can reach here.
          * Without it the handler is unreachable.
          */
-        rd_add_xref(ctx, try_start, handler, RD_CR_JUMP);
+        rd_auto_xref_add(ctx, try_start, handler, RD_CR_JUMP);
         rd_add_comment_before(ctx, handler,
                               rd_format("catch %s", type ? type : "?"));
     }
@@ -106,7 +106,7 @@ static void _dex_emit_handler_list(RDContext* ctx, RDReader* r, DEXFormat* dex,
         if(!rd_reader_read_uleb128(r, &addr)) goto done;
 
         RDAddress handler = insns + (addr.value * 2);
-        rd_add_xref(ctx, try_start, handler, RD_CR_JUMP);
+        rd_auto_xref_add(ctx, try_start, handler, RD_CR_JUMP);
         rd_add_comment_before(ctx, handler, "catch all");
     }
 

@@ -1,4 +1,5 @@
 #include "loader.h"
+#include "gb/cartridge.h"
 #include "gb/sym.h"
 #include <string.h>
 
@@ -6,7 +7,6 @@
 #define GB_HEADER_CHECKSUM_START 0x134
 #define GB_HEADER_CHECKSUM_END 0x14d
 
-#define GB_BASE 0x100
 #define GB_MIN_ROM_SIZE 0x150
 #define GB_ROM_BANK_SIZE 0x4000
 
@@ -24,78 +24,8 @@
 
 #define GB_OPT_LOAD_SYM "gb_load_sym"
 
-#define GB_MAPPERS(X)                                                          \
-    X(ROM_ONLY, 0x00, "ROM ONLY")                                              \
-    X(MBC1, 0x01, "MBC1")                                                      \
-    X(MBC1_RAM, 0x02, "MBC1+RAM")                                              \
-    X(MBC1_RAM_BATT, 0x03, "MBC1+RAM+BATT")                                    \
-    X(MBC2, 0x05, "MBC2")                                                      \
-    X(MBC2_BATTERY, 0x06, "MBC2+BATTERY")                                      \
-    X(ROM_RAM, 0x08, "ROM+RAM")                                                \
-    X(ROM_RAM_BATTERY, 0x09, "ROM+RAM+BATTERY")                                \
-    X(MMM01, 0x0B, "MMM01")                                                    \
-    X(MMM01_SRAM, 0x0C, "MMM01+SRAM")                                          \
-    X(MMM01_SRAM_BATT, 0x0D, "MMM01+SRAM+BATT")                                \
-    X(MBC3_TIMER_BATT, 0x0F, "MBC3+TIMER+BATT")                                \
-    X(MBC3_TIMER_RAM_BATT, 0x10, "MBC3+TIMER+RAM+BATT")                        \
-    X(MBC3, 0x11, "MBC3")                                                      \
-    X(MBC3_RAM, 0x12, "MBC3+RAM")                                              \
-    X(MBC3_RAM_BATT, 0x13, "MBC3+RAM_BATT")                                    \
-    X(MBC5, 0x19, "MBC5")                                                      \
-    X(MBC5_RAM, 0x1A, "MBC5+RAM")                                              \
-    X(MBC5_RAM_BATT, 0x1B, "MBC5+RAM+BATT")                                    \
-    X(MBC5_RUMBLE, 0x1C, "MBC5+RUMBLE")                                        \
-    X(MBC5_RUMBLE_SRAM, 0x1D, "MBC5+RUMBLE+SRAM")                              \
-    X(MBC5_RUMBLE_SRAM_BATT, 0x1E, "MBC5_RUMBLE+SRAM+BATT")                    \
-    X(POCKET_CAMERA, 0xFC, "Pocket Camera")                                    \
-    X(BANDAI_TAMA5, 0xFD, "Bandai TAMA5")                                      \
-    X(HUDSON_HUC_3, 0xFE, "Hudson HuC-3")                                      \
-    X(HUDSON_HUC_1, 0xFF, "Hudson HuC-1")
-
-#define GB_MAPPER_ENUM_X(id, val, name) GB_MAPPER_ID_##id = (val),
-
 #define GB_MAPPER_CASE_X(id, val, name)                                        \
     case val: return #name;
-
-typedef enum { GB_MAPPERS(GB_MAPPER_ENUM_X) } GBMappers;
-
-typedef struct GBCartridge {
-    u32 entry_point;
-    u8 nintendo_logo[48];
-    char title[11];
-    u32 manufacturer_code;
-    u8 cgb_flag;
-    u16 licensee_code;
-    u8 sgb_flag;
-    u8 cartridge_type;
-    u8 rom_size;
-    u8 ram_size;
-    u8 destination_code;
-    u8 old_licensee_code;
-    u8 rom_version;
-    u8 header_checksum;
-    u16 global_checksum;
-} GBCartridge;
-
-static bool _gb_read_cartridge(RDReader* r, GBCartridge* v) {
-    rd_reader_read_le32(r, &v->entry_point);
-    rd_reader_read_exact(r, &v->nintendo_logo, sizeof(v->nintendo_logo));
-    rd_reader_read_exact(r, &v->title, sizeof(v->title));
-    rd_reader_read_le32(r, &v->manufacturer_code);
-    rd_reader_read_byte(r, &v->cgb_flag);
-    rd_reader_read_le16(r, &v->licensee_code);
-    rd_reader_read_byte(r, &v->sgb_flag);
-    rd_reader_read_byte(r, &v->cartridge_type);
-    rd_reader_read_byte(r, &v->rom_size);
-    rd_reader_read_byte(r, &v->ram_size);
-    rd_reader_read_byte(r, &v->destination_code);
-    rd_reader_read_byte(r, &v->old_licensee_code);
-    rd_reader_read_byte(r, &v->rom_version);
-    rd_reader_read_byte(r, &v->header_checksum);
-    rd_reader_read_be16(r, &v->global_checksum);
-
-    return !rd_reader_has_error(r);
-}
 
 static const char* _gb_get_mapper(const GBCartridge* gb) {
     switch(gb->cartridge_type) {
@@ -162,7 +92,11 @@ static bool _gb_validate_header_checksum(RDReader* r, const GBCartridge* gb) {
     rd_reader_seek(r, GB_HEADER_CHECKSUM_START);
 
     u8 chunk[GB_HEADER_CHECKSUM_END - GB_HEADER_CHECKSUM_START];
-    if(!rd_reader_read_exact(r, &chunk, sizeof(chunk))) return false;
+
+    if(!rd_reader_read_exact(r, &chunk, sizeof(chunk))) {
+        rd_reader_restore(r);
+        return false;
+    }
 
     u8 checksum = 0;
     for(usize i = 0; i < sizeof(chunk); i++)
@@ -192,10 +126,12 @@ static void _gb_map_rom(RDContext* ctx, usize n_banks) {
 
     for(usize i = 1; i < n_banks; i++) {
         const char* id = rd_format("ROM%02X", (unsigned int)i);
-        RDRelAddress base = GB_BANKED(i, GB_ROMX_START);
+        RDRelAddress start = GB_BANKED(i, GB_ROMX_START);
 
-        rd_map_segment_n(ctx, id, base, GB_ROM_BANK_SIZE, RD_SP_RX);
-        rd_map_input_n(ctx, (RDOffset)(i * GB_ROM_BANK_SIZE), base,
+        RDSegment* seg =
+            rd_map_segment_n(ctx, id, start, GB_ROM_BANK_SIZE, RD_SP_RX);
+        if(seg) rd_segment_set_selector(seg, i, GB_BANKED(i, 0), ctx);
+        rd_map_input_n(ctx, (RDOffset)(i * GB_ROM_BANK_SIZE), start,
                        GB_ROM_BANK_SIZE);
     }
 }
@@ -232,7 +168,7 @@ static bool gb_parse(RDLoader* ldr, const RDLoaderRequest* req) {
     GBCartridge* gb = (GBCartridge*)ldr;
     rd_reader_seek(req->input, GB_BASE);
 
-    if(!_gb_read_cartridge(req->input, gb)) return false;
+    if(!gb_read_cartridge(req->input, gb)) return false;
     if(!_gb_validate_header_checksum(req->input, gb)) return false;
     if(!_gb_validate_global_checksum(req->input, gb)) return false;
     if(!_gb_get_mapper(gb)) return false;

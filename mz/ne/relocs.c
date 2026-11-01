@@ -125,7 +125,7 @@ void ne_load_relocs(NEFormat* ne, RDContext* ctx, u32 file_off, u16 seg_idx,
                 }
 
                 _ne_patch_reloc(ctx, src_type, from_addr, tgt_seg, tgt_offset);
-                rd_add_xref(ctx, from_addr, to_addr, RD_DR_ADDRESS);
+                rd_auto_xref_add(ctx, from_addr, to_addr, RD_DR_ADDRESS);
 
                 // Seek back: IMPORTNAME case may have displaced the reader
                 rd_reader_seek(r, reloc_off + 2 + ((i + 1) * 8U));
@@ -162,7 +162,7 @@ void ne_load_relocs(NEFormat* ne, RDContext* ctx, u32 file_off, u16 seg_idx,
                 u16 imp_seg = ne->header.SegCount + mod_idx;
                 u16 imp_off = (u16)(import_addr & 0xFFFF);
                 _ne_patch_reloc(ctx, src_type, from_addr, imp_seg, imp_off);
-                rd_add_xref(ctx, from_addr, import_addr, RD_DR_ADDRESS);
+                rd_auto_xref_add(ctx, from_addr, import_addr, RD_DR_ADDRESS);
                 break;
             }
 
@@ -203,7 +203,7 @@ void ne_load_relocs(NEFormat* ne, RDContext* ctx, u32 file_off, u16 seg_idx,
                 u16 imp_seg = ne->header.SegCount + mod_idx;
                 u16 imp_off = (u16)(import_addr & 0xFFFF);
                 _ne_patch_reloc(ctx, src_type, from_addr, imp_seg, imp_off);
-                rd_add_xref(ctx, from_addr, import_addr, RD_DR_ADDRESS);
+                rd_auto_xref_add(ctx, from_addr, import_addr, RD_DR_ADDRESS);
 
                 // Restore reader position to the next reloc record
                 rd_reader_seek(r, reloc_off + 2 + ((i + 1) * 8U));

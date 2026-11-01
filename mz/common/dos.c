@@ -13,7 +13,7 @@ static void _x86_read_com_string(RDContext* ctx, const RDInstruction* instr,
     count++; // include terminator
 
     if(count > 1) {
-        rd_add_xref(ctx, instr->address, addr, RD_DR_READ);
+        rd_auto_xref_add(ctx, instr->address, addr, RD_DR_READ);
         rd_library_type(ctx, addr, "char", count, RD_TYPE_NONE);
     }
 }
@@ -60,7 +60,8 @@ static void _x86_emulate_dos_21h(RDContext* ctx, const RDInstruction* instr) {
             if(!rd_get_regval(ctx, "dx", &dx)) return;
 
             if(cx > 0) {
-                rd_add_xref(ctx, instr->address, (RDAddress)dx, RD_DR_READ);
+                rd_auto_xref_add(ctx, instr->address, (RDAddress)dx,
+                                 RD_DR_READ);
                 rd_library_type(ctx, (RDAddress)dx, "char", (usize)cx,
                                 RD_TYPE_NONE);
             }

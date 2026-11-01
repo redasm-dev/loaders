@@ -1,4 +1,5 @@
 #include "platform.h"
+#include "gb/cartridge.h"
 
 // Interrupt Enable register
 #define GB_IE 0xFFFF
@@ -22,7 +23,7 @@ static void _gb_enable_interrupt(RDContext* ctx, const GBInterrupt* irq,
                                  RDAddress from) {
     // record who enabled it, even if the vector is already a function
     // (another write may enable it too)
-    rd_add_xref(ctx, from, irq->vector, RD_DR_ADDRESS);
+    rd_auto_xref_add(ctx, from, irq->vector, RD_DR_ADDRESS);
 
     // idempotent: the same write can be emulated several times
     if(rd_is_function(ctx, irq->vector)) return;
@@ -40,6 +41,11 @@ static void _gb_bus_write(RDContext* ctx, const RDHookEvent* e,
     // value unknown: can't tell which interrupts are enabled
     if(!e->bus.has_value) return;
 
+    if(e->bus.address >= 0x2000 && e->bus.address <= 0x3fff) {
+        RD_LOG_INFO("write %02lX from %04lX, to %08lX", e->bus.value,
+                    e->bus.from, e->bus.address);
+    }
+
     RDRegValue ie = e->bus.value;
 
     for(usize i = 0; i < rd_count_of(GB_INTERRUPTS); i++) {
@@ -49,12 +55,18 @@ static void _gb_bus_write(RDContext* ctx, const RDHookEvent* e,
 }
 
 static void gb_setup(RDContext* ctx, RDPlatform* p) {
-    RD_UNUSED(p);
+    GBCartridge* gb = (GBCartridge*)p;
+
+    RDReader* r = rd_get_reader(ctx);
+    rd_reader_seek(r, GB_BASE + sizeof(u32));
+    gb_read_cartridge(r, gb);
+
     rd_register_hook(ctx, RD_HOOK_BUS, "redasm.bus_write", _gb_bus_write, NULL);
 }
 
 const RDPlatformPlugin GB_PLATFORM = {
     .id = "gameboy",
     .name = "Game Boy",
+    .instance_size = sizeof(GBCartridge),
     .setup = gb_setup,
 };

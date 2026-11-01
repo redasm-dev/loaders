@@ -12,6 +12,7 @@ target_sources(${PROJECT_NAME}
     PRIVATE
         sm83/sm83.c
         sm83/tables.c
+        gb/cartridge.c
         gb/loader.c
         gb/platform.c
         gb/sym.c
