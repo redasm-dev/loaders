@@ -170,7 +170,6 @@ static bool gb_parse(RDLoader* ldr, const RDLoaderRequest* req) {
 
     if(!gb_read_cartridge(req->input, gb)) return false;
     if(!_gb_validate_header_checksum(req->input, gb)) return false;
-    if(!_gb_validate_global_checksum(req->input, gb)) return false;
     if(!_gb_get_mapper(gb)) return false;
     if(!_gb_get_rom_size(gb)) return false;
 
@@ -178,7 +177,12 @@ static bool gb_parse(RDLoader* ldr, const RDLoaderRequest* req) {
 }
 
 static bool gb_load(RDLoader* ldr, RDContext* ctx) {
+    const GBCartridge* gb = (const GBCartridge*)ldr;
     RDReader* r = rd_get_input_reader(ctx);
+
+    if(!_gb_validate_global_checksum(r, gb))
+        RD_LOG_WARN("global checksum mismatch");
+
     usize size = (usize)rd_align_up(rd_reader_get_length(r), GB_ROM_BANK_SIZE);
 
     _gb_map_rom(ctx, size / GB_ROM_BANK_SIZE);
