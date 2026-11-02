@@ -130,7 +130,7 @@ static void _gb_map_rom(RDContext* ctx, usize n_banks) {
 
         RDSegment* seg =
             rd_map_segment_n(ctx, id, start, GB_ROM_BANK_SIZE, RD_SP_RX);
-        if(seg) rd_segment_set_selector(seg, i, GB_BANKED(i, 0), ctx);
+        if(seg) rd_segment_set_bank(seg, i, GB_BANKED(i, 0), ctx);
         rd_map_input_n(ctx, (RDOffset)(i * GB_ROM_BANK_SIZE), start,
                        GB_ROM_BANK_SIZE);
     }
