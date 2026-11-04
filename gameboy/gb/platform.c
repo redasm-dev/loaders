@@ -51,6 +51,8 @@ static void _gb_bus_write(RDContext* ctx, const RDHookEvent* e,
     for(usize i = 0; i < rd_count_of(GB_INTERRUPTS); i++) {
         if(ie & (1U << GB_INTERRUPTS[i].bit))
             _gb_enable_interrupt(ctx, &GB_INTERRUPTS[i], e->bus.from);
+        else
+            RD_LOG_WARN("unknown interrupt request %lu", ie);
     }
 }
 
