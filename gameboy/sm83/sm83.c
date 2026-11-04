@@ -1,5 +1,6 @@
 #include "sm83.h"
 #include "sm83/tables.h"
+#include <inttypes.h>
 
 // id, name, root, bits, shift
 #define SM83_REGISTERS(X)                                                      \
@@ -36,6 +37,12 @@ typedef enum {
     SM83_OP_KIND_COND = RD_OP_USERBASE,
     SM83_OP_KIND_SYS,
 } SM83Operands;
+
+typedef enum {
+    SM83_ALU_WRITE, // dst gets a value we don't compute (add, or, pop, ...)
+    SM83_ALU_RMW,   // dst is read and written in place (inc, rl, set, ...)
+    SM83_ALU_READ,  // dst is only read (cp, bit)
+} SM83AluKind;
 
 static inline RDAddress _sm83_pc(const RDInstruction* instr,
                                  const usize* cursor) {
@@ -302,6 +309,21 @@ static bool _sm83_ind_address(RDContext* ctx, const RDOperand* op,
     return true;
 }
 
+static bool _sm83_src_address(RDContext* ctx, const RDOperand* op,
+                              RDAddress* addr) {
+    if(op->kind == RD_OP_MEM) {
+        *addr = op->mem;
+        return true;
+    }
+
+    return _sm83_ind_address(ctx, op, addr);
+}
+
+static bool _sm83_read_const8(RDContext* ctx, RDAddress addr, u8* v) {
+    if(rd_is_writable(ctx, addr)) return false;
+    return rd_read_byte(ctx, addr, v);
+}
+
 static void _sm83_forget(RDContext* ctx, const RDOperand* op) {
     if(op->kind == RD_OP_REG) rd_del_regval_id(ctx, op->reg);
 }
@@ -398,6 +420,10 @@ static void _sm83_emu_ld(RDContext* ctx, const RDInstruction* instr) {
 
     _sm83_access(ctx, instr, true, false);
 
+    // taken before [hli] / [hld] move hl
+    RDAddress src_addr;
+    bool has_src_addr = _sm83_src_address(ctx, src, &src_addr);
+
     _sm83_step_hl(ctx, dst);
     _sm83_step_hl(ctx, src);
 
@@ -418,8 +444,17 @@ static void _sm83_emu_ld(RDContext* ctx, const RDInstruction* instr) {
             break;
         }
 
-        // memory-sourced (ld a, [hl] / ldh a, [n]): unknown statically
-        default: rd_del_regval_id(ctx, dst->reg); break;
+        // memory-sourced: known only when it's a constant of the image
+        default: {
+            u8 b;
+
+            if(has_src_addr && _sm83_read_const8(ctx, src_addr, &b))
+                rd_set_regval_id(ctx, dst->reg, b);
+            else
+                rd_del_regval_id(ctx, dst->reg);
+
+            break;
+        }
     }
 }
 
@@ -449,6 +484,35 @@ static void _sm83_emu_branch(RDContext* ctx, const RDInstruction* instr) {
     if(rd_instr_is_call(instr)) _sm83_forget_all(ctx);
 }
 
+// dst = dst <op> operand 'src'
+static void _sm83_alu_rr(RDAlu* alu, RDAluOp op, usize dst, usize src) {
+    alu->op = op;
+    alu->dst.kind = RD_ALU_INDEX;
+    alu->dst.index = dst;
+    alu->src1 = alu->dst;
+    alu->src2.kind = RD_ALU_INDEX;
+    alu->src2.index = src;
+}
+
+// dst = dst <op> cnst
+static void _sm83_alu_rc(RDAlu* alu, RDAluOp op, usize dst, i64 cnst) {
+    alu->op = op;
+    alu->dst.kind = RD_ALU_INDEX;
+    alu->dst.index = dst;
+    alu->src1 = alu->dst;
+    alu->src2.kind = RD_ALU_CONSTANT;
+    alu->src2.cnst = cnst;
+}
+
+// the operand an ALU instruction writes: bit ops put the bit index first
+static const RDOperand* _sm83_alu_dst(const RDInstruction* instr) {
+    switch(instr->id) {
+        case SM83_INSTR_SET:
+        case SM83_INSTR_RES: return &instr->operands[1];
+        default: return &instr->operands[0];
+    }
+}
+
 // 'add a, l' with hl loaded by 'ld hl, nn': hl is the base of a table
 static void _sm83_base_index(RDContext* ctx, const RDInstruction* instr) {
     const RDOperand* dst = &instr->operands[0];
@@ -462,31 +526,97 @@ static void _sm83_base_index(RDContext* ctx, const RDInstruction* instr) {
     rd_mark_regval_address(ctx, pair);
 }
 
-typedef enum {
-    SM83_ALU_WRITE, // dst gets a value we don't compute (add, or, pop, ...)
-    SM83_ALU_RMW,   // dst is read and written in place (inc, rl, set, ...)
-    SM83_ALU_READ,  // dst is only read (cp, bit)
-} SM83AluKind;
-
 static void _sm83_emu_alu(RDContext* ctx, const RDInstruction* instr,
                           SM83AluKind kind) {
-    const RDOperand* dst = &instr->operands[0];
-    const RDOperand* src = &instr->operands[1];
-
     _sm83_access(ctx, instr, false, kind == SM83_ALU_RMW);
 
+    // 'ld hl, base / add a, l': base of a table indexed by A
     if(instr->id == SM83_INSTR_ADD) _sm83_base_index(ctx, instr);
 
-    if(kind == SM83_ALU_READ) return;
+    if(kind == SM83_ALU_READ) return; // cp, bit: flags only
 
-    // 'xor a, a' is zero whatever a was
-    if(instr->id == SM83_INSTR_XOR && dst->kind == RD_OP_REG &&
-       src->kind == RD_OP_REG && dst->reg == src->reg) {
-        rd_set_regval_id(ctx, dst->reg, 0);
+    RDAlu alu = {0};
+
+    switch(instr->id) {
+        case SM83_INSTR_ADD: _sm83_alu_rr(&alu, RD_ALUOP_ADD, 0, 1); break;
+        case SM83_INSTR_SUB: _sm83_alu_rr(&alu, RD_ALUOP_SUB, 0, 1); break;
+        case SM83_INSTR_AND: _sm83_alu_rr(&alu, RD_ALUOP_AND, 0, 1); break;
+        case SM83_INSTR_OR: _sm83_alu_rr(&alu, RD_ALUOP_OR, 0, 1); break;
+        case SM83_INSTR_XOR: _sm83_alu_rr(&alu, RD_ALUOP_XOR, 0, 1); break;
+
+        case SM83_INSTR_INC: _sm83_alu_rc(&alu, RD_ALUOP_ADD, 0, 1); break;
+        case SM83_INSTR_DEC: _sm83_alu_rc(&alu, RD_ALUOP_SUB, 0, 1); break;
+        case SM83_INSTR_SWAP: _sm83_alu_rc(&alu, RD_ALUOP_ROL, 0, 4); break;
+        case SM83_INSTR_SLA: _sm83_alu_rc(&alu, RD_ALUOP_LSL, 0, 1); break;
+        case SM83_INSTR_SRA: _sm83_alu_rc(&alu, RD_ALUOP_ASR, 0, 1); break;
+        case SM83_INSTR_SRL: _sm83_alu_rc(&alu, RD_ALUOP_LSR, 0, 1); break;
+        case SM83_INSTR_RLC: _sm83_alu_rc(&alu, RD_ALUOP_ROL, 0, 1); break;
+        case SM83_INSTR_RRC: _sm83_alu_rc(&alu, RD_ALUOP_ROR, 0, 1); break;
+
+        // set/res n, r: the bit index is operand 0
+        case SM83_INSTR_SET:
+            _sm83_alu_rc(&alu, RD_ALUOP_OR, 1,
+                         (i64)((u64)1 << (instr->operands[0].cnst & 7)));
+            break;
+
+        case SM83_INSTR_RES:
+            _sm83_alu_rc(&alu, RD_ALUOP_AND, 1,
+                         (i64) ~((u64)1 << (instr->operands[0].cnst & 7)));
+            break;
+
+        // adc, sbc, rl, rr (need the carry), pop (stack): left invalid
+        default: break;
+    }
+
+    if(rd_alu(ctx, instr, &alu) == RD_ALU_SKIP)
+        _sm83_forget(ctx, _sm83_alu_dst(instr));
+}
+
+// cpl, rlca, rrca, rla, rra, daa: implicit A (no operands)
+static void _sm83_emu_implicit_a(RDContext* ctx, const RDInstruction* instr) {
+    RDAlu alu = {0};
+
+    alu.dst.kind = RD_ALU_REGISTER;
+    alu.dst.reg = SM83_OP_A;
+    alu.src1 = alu.dst;
+    alu.src2.kind = RD_ALU_CONSTANT;
+    alu.src2.cnst = 1;
+
+    switch(instr->id) {
+        case SM83_INSTR_CPL:
+            alu.op = RD_ALUOP_NOT;
+            alu.src2.kind = RD_ALU_NONE;
+            break;
+
+        case SM83_INSTR_RLCA: alu.op = RD_ALUOP_ROL; break;
+        case SM83_INSTR_RRCA: alu.op = RD_ALUOP_ROR; break;
+        default: break; // rla, rra (carry), daa: left invalid
+    }
+
+    if(rd_alu(ctx, instr, &alu) == RD_ALU_SKIP)
+        rd_del_regval_id(ctx, SM83_OP_AF);
+}
+
+// 'push rr / ret': ret pops what was just pushed, so it's a jump through rr
+static void _sm83_emu_push(RDContext* ctx, const RDInstruction* instr) {
+    RDAddress ret = instr->address + instr->length;
+
+    u8 next;
+    if(!rd_read_byte(ctx, instr->address + instr->length, &next) ||
+       next != 0xC9) {
         return;
     }
 
-    _sm83_forget(ctx, dst);
+    RDRegValue target;
+
+    if(rd_get_regval_id(ctx, instr->operands[0].reg, &target)) {
+        // known target ('ld de, nn / push de / ret'): it's just 'jp nn'
+        rd_auto_xref_add(ctx, ret, (RDAddress)target, RD_CR_JUMP);
+        return;
+    }
+
+    rd_add_problem(ctx, instr->address, ret,
+                   "possible jump table or computed jump");
 }
 
 static void sm83_emulate(RDContext* ctx, const RDInstruction* instr,
@@ -534,7 +664,9 @@ static void sm83_emulate(RDContext* ctx, const RDInstruction* instr,
         case SM83_INSTR_RRCA:
         case SM83_INSTR_RRA:
         case SM83_INSTR_CPL:
-        case SM83_INSTR_DAA: rd_del_regval_id(ctx, SM83_OP_AF); break;
+        case SM83_INSTR_DAA: _sm83_emu_implicit_a(ctx, instr); break;
+
+        case SM83_INSTR_PUSH: _sm83_emu_push(ctx, instr); break;
 
         default: break; // nop, push, ret, ei, di, halt, scf, ccf, ...
     }
