@@ -2,8 +2,13 @@
 
 static const RDInstruction PSX_BIOS_STUB[] = {
     {
-        .mnemonic = "li",
-        .operands = {[0] = {.kind = RD_OP_REG}, [1] = {.kind = RD_OP_IMM}},
+        .mnemonic = "addiu",
+        .operands =
+            {
+                [0] = {.kind = RD_OP_REG},
+                [1] = {.kind = RD_OP_REG},
+                [2] = {.kind = RD_OP_IMM},
+            },
     },
     {
         .mnemonic = "jr",
@@ -11,8 +16,13 @@ static const RDInstruction PSX_BIOS_STUB[] = {
         .operands = {[0] = {.kind = RD_OP_REG}},
     },
     {
-        .mnemonic = "li",
-        .operands = {[0] = {.kind = RD_OP_REG}, [1] = {.kind = RD_OP_IMM}},
+        .mnemonic = "addiu",
+        .operands =
+            {
+                [0] = {.kind = RD_OP_REG},
+                [1] = {.kind = RD_OP_REG},
+                [2] = {.kind = RD_OP_IMM},
+            },
     },
 };
 
@@ -41,10 +51,13 @@ static void _psx_autorename_bioscalls(RDContext* ctx, const RDHookEvent* e,
                              rd_count_of(PSX_BIOS_STUB)))
             continue;
 
-        // jr must go through the register the first li loaded
+        // jr must go through the register the first addiu
         if(instrs[0].operands[0].reg != instrs[1].operands[0].reg) continue;
 
-        u64 sel = instrs[0].operands[1].imm, fn = instrs[2].operands[1].imm;
+        // second register operand must match
+        if(instrs[0].operands[1].reg != instrs[2].operands[1].reg) continue;
+
+        u64 sel = instrs[0].operands[2].imm, fn = instrs[2].operands[2].imm;
         if(sel > 0xFF || fn > 0xFF) continue;
 
         const char* name = psx_bios_lookup(kb, sel, fn);
