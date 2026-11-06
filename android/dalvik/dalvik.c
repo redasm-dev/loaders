@@ -352,10 +352,7 @@ static bool dalvik_query_reg(RDQueryReg* q, RDProcessor* p) {
     }
 
     // no sub-registers: a Dalvik register is always accessed whole
-    if(q->want & RD_QUERY_REG_WANT_MASK) {
-        q->mask.mask = RD_REGMASK_FULL;
-        q->mask.shift = 0;
-    }
+    if(q->want & RD_QUERY_REG_WANT_MASK) q->mask = rd_make_regmask(32, 0);
 
     // no aliases either: vN is its own root form
     if(q->want & RD_QUERY_REG_WANT_ROOT) q->root_name = q->name;
