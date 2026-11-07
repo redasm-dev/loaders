@@ -35,7 +35,7 @@ static const char* psx_bios_lookup(const RDDatum* kb, u8 sel, u8 fn) {
     return rd_datum_get_str(kb, str);
 }
 
-static void _psx_autorename_bioscalls(RDContext* ctx, const RDHookEvent* e,
+static bool _psx_autorename_bioscalls(RDContext* ctx, const RDHookEvent* e,
                                       void* userdata) {
     RD_UNUSED(e);
 
@@ -63,20 +63,51 @@ static void _psx_autorename_bioscalls(RDContext* ctx, const RDHookEvent* e,
         const char* name = psx_bios_lookup(kb, sel, fn);
         if(name) rd_library_name(ctx, *addr, name);
     }
+
+    return true;
+}
+
+static bool _psx_render_cop2(RDContext* ctx, const RDHookEvent* e,
+                             void* userdata) {
+    RD_UNUSED(ctx);
+
+    const RDDatum* kb = (const RDDatum*)userdata;
+    RDRenderer* r = e->render_operand.renderer;
+    u32 cmd = (u32)e->render_operand.instr->operands[e->render_operand.idx].imm;
+
+    const char* name =
+        rd_datum_get_str(kb, rd_format("gte.cmd.%02x", cmd & 0x3F));
+
+    if(name) {
+        rd_renderer_text(r, name, RD_THEME_LOCATION, RD_THEME_BACKGROUND);
+        return true;
+    }
+
+    return false;
 }
 
 static void psx_setup(RDContext* ctx, RDPlatform* p) {
     RD_UNUSED(p);
 
-    const RDDatum* kb = rd_kb_load(ctx, "platform/psx/bios");
+    const RDDatum* bios_kb = rd_kb_load(ctx, "platform/psx/bios");
 
-    if(!kb) {
+    if(bios_kb) {
+        rd_register_hook(ctx, RD_HOOK_GENERAL, "redasm.symbols",
+                         _psx_autorename_bioscalls, (void*)bios_kb);
+    }
+    else {
         RD_LOG_WARN("bios KB not found, BIOS calls won't be named");
-        return;
     }
 
-    rd_register_hook(ctx, RD_HOOK_GENERAL, "redasm.symbols",
-                     _psx_autorename_bioscalls, (void*)kb);
+    const RDDatum* gte_kb = rd_kb_load(ctx, "platform/psx/gte");
+
+    if(gte_kb) {
+        rd_register_hook(ctx, RD_HOOK_RENDER_OPERAND, "mips.cop2",
+                         _psx_render_cop2, (void*)gte_kb);
+    }
+    else {
+        RD_LOG_WARN("gte KB not found, GTE commands won't be named");
+    }
 }
 
 const RDPlatformPlugin PSX = {
