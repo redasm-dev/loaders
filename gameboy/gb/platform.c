@@ -32,14 +32,14 @@ static void _gb_enable_interrupt(RDContext* ctx, const GBInterrupt* irq,
     rd_auto_name(ctx, irq->vector, irq->name);
 }
 
-static void _gb_bus_write(RDContext* ctx, const RDHookEvent* e,
+static bool _gb_bus_write(RDContext* ctx, const RDHookEvent* e,
                           void* userdata) {
     RD_UNUSED(userdata);
 
-    if(e->bus.address != GB_IE) return;
+    if(e->bus.address != GB_IE) return false;
 
     // value unknown: can't tell which interrupts are enabled
-    if(!e->bus.has_value) return;
+    if(!e->bus.has_value) return false;
 
     if(e->bus.address >= 0x2000 && e->bus.address <= 0x3fff) {
         RD_LOG_INFO("write %02lX from %04lX, to %08lX", e->bus.value,
@@ -54,6 +54,8 @@ static void _gb_bus_write(RDContext* ctx, const RDHookEvent* e,
         else
             RD_LOG_WARN("unknown interrupt request %lu", ie);
     }
+
+    return true;
 }
 
 static void gb_setup(RDContext* ctx, RDPlatform* p) {

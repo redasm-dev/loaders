@@ -73,12 +73,12 @@ static void _x86_emulate_dos_21h(RDContext* ctx, const RDInstruction* instr) {
     }
 }
 
-static void _x86_dos_int_hook(RDContext* ctx, const RDHookEvent* e,
+static bool _x86_dos_int_hook(RDContext* ctx, const RDHookEvent* e,
                               void* userdata) {
     RD_UNUSED(userdata);
 
     if(e->kind == RD_HOOK_DECODE) {
-        if(e->decode.instr->operands[0].kind != RD_OP_CNST) return;
+        if(e->decode.instr->operands[0].kind != RD_OP_CNST) return false;
 
         switch(e->decode.instr->operands[0].cnst) {
             case 0x21: _x86_decode_dos_21h(ctx, e->decode.instr); break;
@@ -91,13 +91,15 @@ static void _x86_dos_int_hook(RDContext* ctx, const RDHookEvent* e,
         }
     }
     else if(e->kind == RD_HOOK_EMULATE) {
-        if(e->emulate.instr->operands[0].kind != RD_OP_CNST) return;
+        if(e->emulate.instr->operands[0].kind != RD_OP_CNST) return false;
 
         switch(e->emulate.instr->operands[0].cnst) {
             case 0x21: _x86_emulate_dos_21h(ctx, e->emulate.instr); break;
             default: break;
         }
     }
+
+    return true;
 }
 
 static void dos_setup(RDContext* ctx, RDPlatform* p) {
