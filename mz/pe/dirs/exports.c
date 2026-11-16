@@ -61,10 +61,15 @@ bool pe_read_exports_dir(RDContext* ctx, PEFormat* pe) {
     rd_library_type(ctx, va, "PE_EXPORT_DIRECTORY", 0, RD_TYPE_NONE);
 
     RDAddress name_va;
+    char* module_name = NULL;
+
     if(pe_from_rva(pe, exportdir.Name, &name_va)) {
         rd_reader_seek(r, name_va);
+
         usize n;
-        if(rd_reader_peek_str(r, &n)) {
+        module_name = rd_strdup(rd_reader_peek_str(r, &n));
+
+        if(module_name) {
             rd_library_type(ctx, name_va, "char", n + 1, RD_TYPE_NONE);
             rd_auto_name(ctx, name_va, "__rd_pe_module_name");
         }
@@ -120,7 +125,8 @@ bool pe_read_exports_dir(RDContext* ctx, PEFormat* pe) {
 
         RDAddress entry_va;
         if(pe_from_rva(pe, entry_rva, &entry_va)) {
-            rd_set_external_ord(ctx, entry_va, NULL, ord, RD_EXT_EXPORTED);
+            rd_set_external_ord(ctx, entry_va, module_name, ord,
+                                RD_EXT_EXPORTED);
             if(export_name) rd_library_name(ctx, entry_va, export_name);
         }
 
@@ -143,11 +149,13 @@ bool pe_read_exports_dir(RDContext* ctx, PEFormat* pe) {
                                 RD_TYPE_NONE);
             }
         }
-        else if(is_func)
+        else if(is_func) {
             rd_set_function(ctx, entry_va);
+        }
 
         rd_reader_restore(r);
     }
 
+    rd_free(module_name);
     return true;
 }
