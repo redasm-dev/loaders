@@ -79,7 +79,7 @@ bool pe_read_exports_dir(RDContext* ctx, PEFormat* pe) {
     if(!pe_from_rva(pe, exportdir.AddressOfFunctions, &functions_va) ||
        !pe_from_rva(pe, exportdir.AddressOfNames, &names_va) ||
        !pe_from_rva(pe, exportdir.AddressOfNameOrdinals, &ordinals_va))
-        return false;
+        goto fail;
 
     rd_reader_seek(r, functions_va);
 
@@ -99,7 +99,7 @@ bool pe_read_exports_dir(RDContext* ctx, PEFormat* pe) {
 
             if(!rd_reader_read_le16(r, &name_ord)) {
                 rd_reader_restore(r);
-                return false;
+                goto fail;
             }
 
             if((u32)name_ord == i) {
@@ -158,4 +158,8 @@ bool pe_read_exports_dir(RDContext* ctx, PEFormat* pe) {
 
     rd_free(module_name);
     return true;
+
+fail:
+    rd_free(module_name);
+    return false;
 }
